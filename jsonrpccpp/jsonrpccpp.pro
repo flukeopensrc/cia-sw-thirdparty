@@ -18,7 +18,6 @@ TEMPLATE = subdirs
 
 # These are the subdirectories to run make when making the whole system.
 SUBDIRS = \
-	jsoncpp \
 	client \
 	common \
 	server 
