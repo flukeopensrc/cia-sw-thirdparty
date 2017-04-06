@@ -25,7 +25,7 @@ TARGET = jsoncpp
 #}
 
 # Include files *************************************************************
-include(../shared/common.pri)
+include(jsoncpp.pri)
 
 # Project configuration *****************************************************
 
