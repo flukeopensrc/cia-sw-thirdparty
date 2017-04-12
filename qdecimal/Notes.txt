@@ -1,0 +1,17 @@
+There are numerous parameters to set up the decNumber library at compile time.
+
+They are described here: http://speleotrove.com/decimal/dnopts.html
+
+This is how they are set as received:
+* DECLITEND      1
+* DECUSE64       1
+* DECEXTFLAG     1
+* DECSUBSET      1
+* DECDPUN        3
+* DECBUFFER     36
+* DECPRINT       1
+* DECCHECK       0
+* DECALLOC       0
+* DECTRACE       0
+
+
