@@ -16,8 +16,6 @@
 
 LIBNAME=jsonrpccpp
 
-LIBDIR=../../build/nios2/lib/
-
 BUILDDIR="../../build/nios2/$LIBNAME"
 
 #* Source paths **************************************************************
