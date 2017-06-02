@@ -6,8 +6,7 @@ nios2-lib-generate-makefile --lib-name jsoncpp \
     --src-dir . \
     --inc-dir . \
     --lib-dir ../../build/nios2/lib/jsoncpp \
-    --public-inc-dir ../ \
-    --public-inc-dir . \
+    --set CXXFLAGS -std=c++11 -D_GLIBCXX_USE_C99 \
     --verbose
 
 echo
