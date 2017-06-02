@@ -1,0 +1,8 @@
+*.o
+*.a
+*.map
+*.elf
+*.objdump
+*.gch
+.qmake.stash
+Makefile
