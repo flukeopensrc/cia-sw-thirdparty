@@ -1,20 +1,60 @@
+#*****************************************************************************
+#    Copyright (c) 2017 Fluke Corporation, Inc. All rights reserved.
+#*****************************************************************************
+#
+#   Repository URL:    git.sesg.fluke.com:/fcal/cia/sw/thirdparty.git
+#   Authored By:       Trevor Vannoy
+#   Origin:            FCAL Common Instrument Architecture
+#
+#   Build script for the jsonrpccpp library.
+#
+#*****************************************************************************
+#   Use of the software source code and warranty disclaimers are
+#   identified in the Software Agreement associated herewith.
+#*****************************************************************************
 #!/bin/sh
 
+LIBNAME=jsonrpccpp
+
+LIBDIR=../../build/nios2/lib/
+
+BUILDDIR="../../build/nios2/$LIBNAME"
+
+#* Source paths **************************************************************
+CLIENTDIR=client
+COMMONDIR=common
+SERVERDIR=server
+
+#* Include paths *************************************************************
+INCDIR=../
+
+#* Misc config ***************************************************************
+#-D_GLIBCXX_USE_C99 ensures std::stoul and some others are defined.
+CXXFLAGS="-std=c++11"
+
+#* Build the library *************************************************************
 echo "Generating library makefiles..."
 echo
-nios2-lib-generate-makefile --lib-name jsonrpccpp \
-    --src-dir client \
-    --src-dir common \
-    --src-dir server \
-    --inc-dir . \
-    --inc-dir .. \
-    --lib-dir ../../build/nios2/lib/jsonrpccpp \
-    --use-lib-dir ../../build/nios2/lib/jsoncpp \
-    --public-inc-dir ../ \
-    --set CXXFLAGS -std=c++11 \
+
+nios2-lib-generate-makefile \
+    --lib-name $LIBNAME \
+    --lib-dir $BUILDDIR \
+    --src-dir $CLIENTDIR \
+    --src-dir $COMMONDIR \
+    --src-dir $SERVERDIR \
+    --inc-dir $INCDIR \
+    --set CXXFLAGS $CXXFLAGS \
     --verbose
 
 echo
 echo "Running make..."
 echo
-cd ../../build/nios2/lib/jsonrpccpp && make
+cd $BUILDDIR
+make
+
+echo
+echo "Moving the library to the lib directory..."
+echo
+mv "lib$LIBNAME.a" "../lib/lib$LIBNAME.a"
+
+echo "All done!"
