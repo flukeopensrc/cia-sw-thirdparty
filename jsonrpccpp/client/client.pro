@@ -30,7 +30,7 @@ QT -= core
 CONFIG -= qt
 
 # Make this a static library
-#CONFIG += static
+CONFIG += static
 
 # The compiler on line is a spaz. So I am turning warnings off for now.
 #CONFIG += warn_on
@@ -63,9 +63,9 @@ DEPENDPATH += ..
 #exists(*.cpp) {
 #    SOURCES += *.cpp
 #}
-
+SOURCES += connectors/linuxtcpsocketclient.cpp
 # Header files.
 #exists(*.h) {
 #    HEADERS += *.h
 #}
-
+HEADERS += connectors/linuxtcpsocketclient.h
