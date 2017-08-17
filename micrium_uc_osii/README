@@ -1,0 +1,8 @@
+This directory and its contents are a replacement for the default uC/OS
+directory that normally resides within the quartus installation
+directory.
+
+After installing quartus on a system, delete the default uC/OS and
+then copy this in its place. The location should be something like the
+following:
+<quartus install directory>/nios2eds/components/micrium_uc_osii/
