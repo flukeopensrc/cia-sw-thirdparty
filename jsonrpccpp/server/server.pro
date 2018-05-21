@@ -68,8 +68,9 @@ DEPENDPATH += ..
 #exists(*.cpp) {
 #    SOURCES += *.cpp
 #}
-
+SOURCES += connectors/linuxtcpsocketserver.cpp
 # Header files.
 #exists(*.h) {
 #    HEADERS += *.h
 #}
+HEADERS += connectors/linuxtcpsocketserver.h

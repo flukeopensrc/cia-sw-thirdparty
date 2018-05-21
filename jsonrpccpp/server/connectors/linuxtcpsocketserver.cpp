@@ -40,6 +40,10 @@ LinuxTcpSocketServer::LinuxTcpSocketServer(const std::string& ipToBind, const un
 {
 }
 
+LinuxTcpSocketServer::~LinuxTcpSocketServer()
+{
+}
+
 bool LinuxTcpSocketServer::StartListening()
 {
 	if(!this->running)

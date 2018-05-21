@@ -38,6 +38,10 @@ namespace jsonrpc
                          * @param port The port on which the server should bind and listen
                          */
 			LinuxTcpSocketServer(const std::string& ipToBind, const unsigned int &port);
+            /**
+             * @brief ~LinuxTcpSocketServer, the destructor of LinuxTcpSocketServer
+             */
+            virtual ~LinuxTcpSocketServer();
                         /**
                          * @brief The real implementation TcpSocketServer::StartListening method.
                          * 
