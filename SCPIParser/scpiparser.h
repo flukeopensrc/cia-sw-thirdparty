@@ -58,7 +58,7 @@ public:
 	UCHAR SCPI_Parse(char **pSInput, BOOL bResetTree, SCPI_CMD_NUM *pCmdSpecNum, SCPIParam sParam[],
 		UCHAR *pNumSufCnt, unsigned int uiNumSuf[]);
 #else
-	UCHAR Parse(char **pSInput, BOOL bResetTree, SCPI_CMD_NUM *pCmdSpecNum, SCPIParam sParam[]);
+	UCHAR SCPI_Parse(char **pSInput, BOOL bResetTree, SCPI_CMD_NUM *pCmdSpecNum, SCPIParam sParam[]);
 #endif
 
 
