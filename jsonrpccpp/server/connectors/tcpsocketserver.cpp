@@ -21,9 +21,11 @@ using namespace std;
 TcpSocketServer::TcpSocketServer(const std::string& ipToBind, const unsigned int &port) :
 	AbstractServerConnector()
 {
+    foo
 #ifdef __WIN32__
 	this->realSocket = new WindowsTcpSocketServer(ipToBind, port);
 #elif __unix__
+
 	this->realSocket = new LinuxTcpSocketServer(ipToBind, port);
 #else
 	this->realSocket = NULL;
