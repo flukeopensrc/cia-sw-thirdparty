@@ -271,7 +271,7 @@ PRIVATE BOOL usbtmc_interface_enabled                     = FALSE;
 PRIVATE void (*usbtmc_event_handler)(const USBTMC488_MESSAGE *msg, void* pData);
 PRIVATE __u8  usbtmc_status_byte                          = 0;
 
-void* pData;        // if the call back function handler needs something...pass it here.
+void* m_pData;        // if the call back function handler needs something...pass it here.
 
 /* Timeout, in msec, used for writes to the interrupt-in endpoint.
  * A timeout is needed for cases where the host is not sending
@@ -1080,7 +1080,7 @@ process_dev_dep_msg_in(struct usbtmc_bulk_in_msg *msg)
     eventMsgBuffer.buffer = data;
     eventMsg.msg_buffer   = &eventMsgBuffer;
 
-    usbtmc_event_handler(&eventMsg, pData);
+    usbtmc_event_handler(&eventMsg, m_pData);
 
     return;
 }
@@ -1841,7 +1841,7 @@ usbtmc_request_thread(void *param)
                 eventMsg.type   = USBTMC488_MSG_DEVICE_TRIGGER;
                 eventMsg.value = 0;
                 eventMsg.msg_buffer = NULL;
-                usbtmc_event_handler(&eventMsg, pData);
+                usbtmc_event_handler(&eventMsg, m_pData);
                 break;
             default:
                 usbtmc488_tsprintf("usbtmc488: %s: Unsupported MsgID = %d\n",
@@ -2242,7 +2242,7 @@ handle_tmc_control(int fd, struct usb_ctrlrequest *setup)
                         controlMsg.type = USBTMC488_MSG_DEVICE_CLEAR;
                         controlMsg.value = 0;
                         controlMsg.msg_buffer   = NULL;
-                        usbtmc_event_handler(&controlMsg, pData);
+                        usbtmc_event_handler(&controlMsg, m_pData);
 
                         /* Wait for the application to indicate that it's
                          * done with device clear processing. If the application fails
@@ -2382,7 +2382,7 @@ handle_tmc_control(int fd, struct usb_ctrlrequest *setup)
                         controlMsg.type = USBTMC488_MSG_DEVICE_CLEAR;
                         controlMsg.value = 0;
                         controlMsg.msg_buffer   = NULL;
-                        usbtmc_event_handler(&controlMsg, pData);
+                        usbtmc_event_handler(&controlMsg, m_pData);
 
                         /* Wait for the application to indicate that it's
                          * done with device clear processing. If the application fails
@@ -2529,7 +2529,7 @@ handle_tmc_control(int fd, struct usb_ctrlrequest *setup)
             controlMsg.type = USBTMC488_MSG_DEVICE_CLEAR;
             controlMsg.value = 0;
             controlMsg.msg_buffer   = NULL;
-            usbtmc_event_handler(&controlMsg, pData);
+            usbtmc_event_handler(&controlMsg, m_pData);
 
             /* Wait for the application to indicate that it's
              * done with device clear processing. If the application fails
@@ -2656,7 +2656,7 @@ handle_tmc_control(int fd, struct usb_ctrlrequest *setup)
             controlMsg.type = USBTMC488_MSG_UPDATE_LOCAL_STATUS_BYTE;
             controlMsg.value = 0;
             controlMsg.msg_buffer   = NULL;
-            usbtmc_event_handler(&controlMsg, pData);
+            usbtmc_event_handler(&controlMsg, m_pData);
 
             return(0);
             break;
@@ -2680,7 +2680,7 @@ handle_tmc_control(int fd, struct usb_ctrlrequest *setup)
             }
             controlMsg.value = 0;
             controlMsg.msg_buffer   = NULL;
-            usbtmc_event_handler(&controlMsg, pData);
+            usbtmc_event_handler(&controlMsg, m_pData);
 
             break;
 
@@ -2696,7 +2696,7 @@ handle_tmc_control(int fd, struct usb_ctrlrequest *setup)
             controlMsg.type = USBTMC488_MSG_GOTO_LOCAL;
             controlMsg.value = 0;
             controlMsg.msg_buffer   = NULL;
-            usbtmc_event_handler(&controlMsg, pData);
+            usbtmc_event_handler(&controlMsg, m_pData);
 
             break;
 
@@ -2712,7 +2712,7 @@ handle_tmc_control(int fd, struct usb_ctrlrequest *setup)
             controlMsg.type = USBTMC488_MSG_GOTO_LOCAL_LOCKOUT;
             controlMsg.value = 0;
             controlMsg.msg_buffer   = NULL;
-            usbtmc_event_handler(&controlMsg, pData);
+            usbtmc_event_handler(&controlMsg, m_pData);
 
             break;
 
@@ -3472,6 +3472,7 @@ usbtmc488_enable_interface( const  USBTMC488_DEVICE_INFO *device_info,
     int len;
     pthread_attr_t attr;
     char *p;
+    m_pData = pData;
 
     /* Perform the startup initialization if this is the first time
      * we've been called.
