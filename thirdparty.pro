@@ -19,7 +19,8 @@ TEMPLATE = subdirs
 # These are the subdirectories to run make when making the whole system.
 SUBDIRS = \
 	jsoncpp \
-	jsonrpccpp
+	jsonrpccpp \
+	usbtmc
 
 # Set Makefile for object files of this build based on which qmake is used.
 # And for non-CDA builds, run the unit tests.
