@@ -218,7 +218,7 @@ bool LinuxTcpSocketServer::WriteToSocket(const int& fd, const string& toWrite)
 		else if(static_cast<size_t>(byteWritten) < toSend.size())
 		{
 			int len = toSend.size() - byteWritten;
-			toSend = toSend.substr(byteWritten + sizeof(char), len);
+			toSend = toSend.substr(byteWritten, len);
 		}
 		else
 			fullyWritten = true;
