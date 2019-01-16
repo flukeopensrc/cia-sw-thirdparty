@@ -63,6 +63,10 @@ CONFIG += c++11
 #QMAKE_CXXFLAGS += -std=c++11
 
 # Harvest source files from the directory.
+exists($$OUT_PWD/*.c) {
+    SOURCES += $$OUT_PWD/*.c
+}
+
 exists($$OUT_PWD/*.cpp) {
     SOURCES += $$OUT_PWD/*.cpp
 }

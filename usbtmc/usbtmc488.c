@@ -16,17 +16,10 @@
  * GNU Lesser General Public License for more details.
  */
 
-#include <sys/syscall.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/ioctl.h>
-#include <sys/time.h>
-#include <linux/version.h>
-#include <linux/usb/functionfs.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <unistd.h>
+#define _GNU_SOURCE
+
 #include <stdio.h>
+#include <unistd.h>
 #include <memory.h>
 #include <pthread.h>
 #include <semaphore.h>
@@ -35,14 +28,26 @@
 #include <stdarg.h>
 #include <time.h>
 #include <limits.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <sys/time.h>
+#include <linux/version.h>
+#include <linux/usb/functionfs.h>
 
 #include "usbtmc488.h"
 
-#define ELEMENTAL_SUPERSPEED
+//DWG #define _DWG_DBG
+//#define _DWG_DBG
+
+#undef  _ENABLE_SUPERSPEED
+#define _ENABLE_AUTO_KERNEL_MODULE
 
 #define USB_SUBCLASS_TMC        3
 #define USBTMC_USB488           1
-
 
 #define INTERRUPT_IN_MAXPACKET  2
 /* bInterval is expressed in microframes. The microframe rates are:
@@ -50,7 +55,6 @@
  *       1 millsecond   for FS
  *
  * The actual polling interval is computed as 2**(bInterval-1)*(microframe rate).
- *
  */
 #define INTERRUPT_IN_INTERVAL_FS   2
 #define INTERRUPT_IN_INTERVAL_HS   2
@@ -69,13 +73,13 @@
 /*sjz           printf("Calling expression...\n");     */                        \
            __result = (long int) (expression);                            \
 /*sjz            printf("result = %d, errno = %d\n", (int)__result, errno);    */ \
-           if ( __result == -1L && errno == EAGAIN )                      \
+           if ((__result == -1L) && (errno == EAGAIN))                    \
            {                                                              \
            __retryCount--;                                                \
            }                                                              \
        }                                                                  \
-       while ((__result == -1L && errno == EINTR) ||                      \
-          (__result == -1L && errno == EAGAIN && __retryCount));          \
+       while (((__result == -1L) && (errno == EINTR)) ||                  \
+          ((__result == -1L) && (errno == EAGAIN) && __retryCount));      \
     __result; }))
 
 /* To enable use of a debugger, the following macro is used to expose
@@ -87,9 +91,6 @@
  */
 #undef  PRIVATE
 #define PRIVATE static
-#if 0
-#define PRIVATE
-#endif
 
 /* The kernel layer of the gadget driver for the dwc_otg device handles
  * reset of data toggle for USB_REQ_CLEAR_FEATURE USB_ENDPOINT_HALT.
@@ -116,7 +117,7 @@
  * the process. This is called once in usbtmc488_enable_interface()
  * and should never be called again.
  */
-PRIVATE int initialize_driver( void );
+PRIVATE int initialize_driver(void);
 
 /* This is set in initialize_driver() and should never be set again.
  */
@@ -157,9 +158,9 @@ wondering if there is a good reason for that.
 
 #define ALIGNMENT  4
 
-#define MAX_PACKET_SIZE_SS	1024
-#define MAX_PACKET_SIZE_HS	512
-#define MAX_PACKET_SIZE_FS	64
+#define MAX_PACKET_SIZE_SS  1024
+#define MAX_PACKET_SIZE_HS  512
+#define MAX_PACKET_SIZE_FS  64
 
 /* Upon connection, we malloc the buffers used for writing bulk-in messages
  * based on the connection speed (HS or not HS). We set MaxTransferSize to
@@ -167,20 +168,21 @@ wondering if there is a good reason for that.
  *
  * Upon disconnection, the buffers are freed and MaxTransferSize is set to 0.
  */
-PRIVATE __u32    MaxTransferSize	= 0;
-PRIVATE __u32    MaxPacketSize		= 0;
+PRIVATE __u32    MaxTransferSize    = 0;
+PRIVATE __u32    MaxPacketSize      = 0;
 
 /* Binary coded decimal field indicating the USB
  * specification level used in the design of this device. As
  * specified in USB 2.0 specification, section 9.6.1.
  */
-
-#if defined(ELEMENTAL_SUPERSPEED)
-
-#define DEVICE_DESCR_USBSPEC_LEVEL		0x0300
-#define DEVICE_DESCR_MAX_PACKET_SIZE	9
-
-#endif /* ELEMENTAL_SUPERSPEED */
+#if defined(_ENABLE_SUPERSPEED)
+# define DEVICE_DESCR_USBSPEC_LEVEL      0x0300
+# define DEVICE_DESCR_MAX_PACKET_SIZE    9
+#else /* _ENABLE_SUPERSPEED */
+# define DEVICE_DESCR_USBSPEC_LEVEL      0x0200
+# define DEVICE_DESCR_MAX_PACKET_SIZE    64
+#endif /* _ENABLE_SUPERSPEED */
+#define DEVICE_DESCR_FLAGS               (FUNCTIONFS_HAS_FS_DESC | FUNCTIONFS_HAS_HS_DESC | FUNCTIONFS_HAS_SS_DESC)
 
 
 /* NOTE:  these IDs don't imply endpoint numbering; host side drivers
@@ -207,23 +209,23 @@ PRIVATE __u32    MaxPacketSize		= 0;
 /*-------------------------------------------------------------------------*/
 /* Bulk-Out Message IDs */
 
-#define DEV_DEP_MSG_OUT                           1
-#define REQUEST_DEV_DEP_MSG_IN                    2
-#define DEV_DEP_MSG_IN                            2
-#define VENDOR_SPECIFIC_OUT                     126
-#define REQUEST_VENDOR_SPECIFIC_IN              127
-#define VENDOR_SPECIFIC_IN                      127
-#define USB488_TRIGGER                          128
+#define USBTMC_DEV_DEP_MSG_OUT                    1
+#define USBTMC_REQ_DEV_DEP_MSG_IN                 2
+#define USBTMC_DEV_DEP_MSG_IN                     2
+#define USBTMC_VENDOR_SPECIFIC_OUT              126
+#define USBTMC_REQ_VENDOR_SPECIFIC_IN           127
+#define USBTMC_VENDOR_SPECIFIC_IN               127
+#define USBTMC_TRIGGER                          128
 
 /*-------------------------------------------------------------------------*/
 
-#define STATUS_SUCCESS                          0x01
-#define STATUS_PENDING                          0x02
-#define STATUS_INTERRUPT_IN_BUSY                0x20
-#define STATUS_FAILED                           0x80
-#define STATUS_TRANSFER_NOT_IN_PROGRESS         0x81
-#define STATUS_SPLIT_NOT_IN_PROGRESS            0x82
-#define STATUS_SPLIT_IN_PROGRESS                0x83
+#define USBTMC_STATUS_SUCCESS                   0x01
+#define USBTMC_STATUS_PENDING                   0x02
+#define USBTMC_STATUS_INTERRUPT_IN_BUSY         0x20
+#define USBTMC_STATUS_FAILED                    0x80
+#define USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS  0x81
+#define USBTMC_STATUS_SPLIT_NOT_IN_PROGRESS     0x82
+#define USBTMC_STATUS_SPLIT_IN_PROGRESS         0x83
 
 /*-------------------------------------------------------------------------*/
 
@@ -244,8 +246,7 @@ PRIVATE __u32    MaxPacketSize		= 0;
 
 #define CONFIG_SELF_POWERED     0x40
 
-/* these descriptors are modified based on what controller we find */
-
+/* These descriptors are modified based on what controller we find */
 #define START_STRINGID          1
 #define STRINGID_MFGR           1
 #define STRINGID_PRODUCT        2
@@ -255,7 +256,6 @@ PRIVATE __u32    MaxPacketSize		= 0;
 #define NUM_STRINGIDS           5
 
 PRIVATE unsigned int verbosity                            = 0x0;
-
 static const char *verbosity_table =
     "API        0x00000001\n"
     "BULKIN EP  0x00000002\n"
@@ -268,7 +268,7 @@ static const char *verbosity_table =
     "THREADS    0x00000100\n";
 
 PRIVATE BOOL usbtmc_interface_enabled                     = FALSE;
-PRIVATE void (*usbtmc_event_handler)(const USBTMC488_MESSAGE *msg, void* pData);
+PRIVATE void (*usbtmc_event_handler)(const USBTMC488_MESSAGE *msg, void* pData) = NULL;
 PRIVATE __u8  usbtmc_status_byte                          = 0;
 
 void* m_pData;        // if the call back function handler needs something...pass it here.
@@ -284,26 +284,7 @@ void* m_pData;        // if the call back function handler needs something...pas
  */
 #define DEVICE_CLEAR_DONE_TIMEOUT 1000
 
-/* These semaphores are initialized as part of driver initialization
- * done in initialize_driver().
- */
-PRIVATE sem_t bulkinLock;
-PRIVATE sem_t bulkoutLock;
-PRIVATE sem_t debugLock;
-PRIVATE sem_t deviceClearLock;
-PRIVATE sem_t intrptDoneEvent;
-PRIVATE sem_t intrptEvent;
-PRIVATE sem_t intrptLock;
-PRIVATE sem_t requestLock;
-PRIVATE sem_t responseLock;
-PRIVATE sem_t responseReady;
-PRIVATE sem_t statusByteLock;
-PRIVATE sem_t stringtabLock;
-PRIVATE sem_t tsPrintLock;
-PRIVATE sem_t userServiceLock;
-
-typedef enum
-{
+typedef enum {
     BULKIN_LOCK               = 0,
     BULKOUT_LOCK              = 1,
     DEVICE_CLEAR_LOCK         = 2,
@@ -319,87 +300,47 @@ typedef enum
     NUM_LOCKS                 = 12
 } USBTMC488_LOCK_TYPE;
 
-PRIVATE const char *lockTypeStrings[NUM_LOCKS] =
-{
-    "BULKIN_LOCK",
-    "BULKOUT_LOCK",
-    "DEVICE_CLEAR_LOCK",
-    "INTRPT_DONE_EVENT",
-    "INTRPT_EVENT",
-    "INTRPT_LOCK",
-    "REQUEST_LOCK",
-    "RESPONSE_LOCK",
-    "STATUS_BYTE_LOCK",
-    "STRINGTAB_LOCK",
-    "TALKADDR_OR_TERMINATE",
-    "USER_SERVICE_LOCK"
-};
-
-PRIVATE sem_t *pLockArray[NUM_LOCKS] =
-{
-    &bulkinLock,
-    &bulkoutLock,
-    &deviceClearLock,
-    &intrptDoneEvent,
-    &intrptEvent,
-    &intrptLock,
-    &requestLock,
-    &responseLock,
-    &responseReady,
-    &statusByteLock,
-    &stringtabLock,
-    &userServiceLock
-};
-
-PRIVATE struct usb_device_descriptor device_desc =
-{
-    .bLength =              sizeof(device_desc),
-    .bDescriptorType =      USB_DT_DEVICE,
-
-    .bcdUSB =               __constant_cpu_to_le16(DEVICE_DESCR_USBSPEC_LEVEL),
-    .bDeviceClass =         USB_CLASS_PER_INTERFACE,
-    .bDeviceSubClass =      0,
-    .bDeviceProtocol =      0,
-    /* .idVendor =       ... set by usbtmc488_enable_interface() */
-    /* .idProduct =      ... set by usbtmc488_enable_interface() */
-    /* .bcdDevice =      ... set by usbtmc488_enable_interface() */
-    .bMaxPacketSize0 =      DEVICE_DESCR_MAX_PACKET_SIZE,
-    .idVendor =             0,
-    .idProduct =            0,
-    .bcdDevice =            0,
-    .iManufacturer =        STRINGID_MFGR,
-    .iProduct =             STRINGID_PRODUCT,
-    .iSerialNumber =        STRINGID_SERIAL,
-    .bNumConfigurations =   1
+PRIVATE struct {
+    const char *name;
+    sem_t      *pLock;
+} lockInfo[] = {
+    { "BULKIN_LOCK", NULL },
+    { "BULKOUT_LOCK", NULL },
+    { "DEVICE_CLEAR_LOCK", NULL },
+    { "INTRPT_DONE_EVENT", NULL },
+    { "INTRPT_EVENT", NULL },
+    { "INTRPT_LOCK", NULL },
+    { "REQUEST_LOCK", NULL },
+    { "RESPONSE_LOCK", NULL },
+    { "STATUS_BYTE_LOCK", NULL },
+    { "STRINGTAB_LOCK", NULL },
+    { "TALKADDR_OR_TERMINATE", NULL },
+    { "USER_SERVICE_LOCK", NULL },
 };
 
 /* The value used for the bConfigurationValue field of the configuration
  * descriptor. The USBTMC spec requires that this be 1.
  */
-#define CONFIG_VALUE		1
-
-#if defined(ELEMENTAL_SUPERSPEED)
+#define CONFIG_VALUE        1
 
 PRIVATE struct usb_descriptors_s {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,17,0))
     struct usb_functionfs_descs_head_v2 header;
-    __le32 fs_count;
-    __le32 hs_count;
-    __le32 ss_count;
 #else /* LINUX_VERSION_CODE */
     __le32 magic;
     __le32 length;
     __le32 flags;
+#endif /* LINUX_VERSION_CODE */
     __le32 fs_count;
     __le32 hs_count;
     __le32 ss_count;
-#endif /* LINUX_VERSION_CODE */
     struct {
         struct usb_interface_descriptor intf;
         struct usb_endpoint_descriptor_no_audio bulkin;
         struct usb_endpoint_descriptor_no_audio bulkout;
         struct usb_endpoint_descriptor_no_audio intr;
     } __attribute__((packed)) fs_descs, hs_descs;
+#if defined(_ENABLE_SUPERSPEED)
     struct {
         struct usb_interface_descriptor intf;
         struct usb_endpoint_descriptor_no_audio bulkin;
@@ -409,27 +350,23 @@ PRIVATE struct usb_descriptors_s {
         struct usb_endpoint_descriptor_no_audio intr;
         struct usb_ss_ep_comp_descriptor intr_comp;
     } __attribute__((packed)) ss_descs;
-} __attribute__((packed)) descriptors = {
+#endif /* _ENABLE_SUPERSPEED */
+} __attribute__((packed)) usb_descriptors = {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,17,0))
     .header = {
         .magic = __cpu_to_le32(FUNCTIONFS_DESCRIPTORS_MAGIC_V2),
-        .length = __cpu_to_le32(sizeof descriptors),
-        .flags = __cpu_to_le32(FUNCTIONFS_HAS_FS_DESC | FUNCTIONFS_HAS_HS_DESC | FUNCTIONFS_HAS_SS_DESC),
+        .length = __cpu_to_le32(sizeof(usb_descriptors)),
+        .flags = __cpu_to_le32(DEVICE_DESCR_FLAGS),
     },
-    .fs_count = __cpu_to_le32(4),
-    .hs_count = __cpu_to_le32(4),
-    .ss_count = __cpu_to_le32(7),
 #else /* LINUX_VERSION_CODE */
     .magic = __cpu_to_le32(FUNCTIONFS_DESCRIPTORS_MAGIC_V2),
-    .length = __cpu_to_le32(sizeof descriptors),
-    .flags = __cpu_to_le32(FUNCTIONFS_HAS_FS_DESC | FUNCTIONFS_HAS_HS_DESC | FUNCTIONFS_HAS_SS_DESC),
-    .fs_count = __cpu_to_le32(4),
-    .hs_count = __cpu_to_le32(4),
-    .ss_count = __cpu_to_le32(7),
+    .length = __cpu_to_le32(sizeof(usb_descriptors)),
+    .flags = __cpu_to_le32(DEVICE_DESCR_FLAGS),
 #endif /* LINUX_VERSION_CODE */
+    .fs_count = __cpu_to_le32(4),
     .fs_descs = {
         .intf = {
-            .bLength = sizeof descriptors.fs_descs.intf,
+            .bLength = sizeof(usb_descriptors.fs_descs.intf),
             .bDescriptorType = USB_DT_INTERFACE,
             .bInterfaceNumber = 0,
             .bAlternateSetting = 0,
@@ -440,7 +377,7 @@ PRIVATE struct usb_descriptors_s {
             .iInterface = STRINGID_INTERFACE,
         },
         .bulkin = {
-            .bLength = sizeof descriptors.fs_descs.bulkin,
+            .bLength = sizeof(usb_descriptors.fs_descs.bulkin),
             .bDescriptorType = USB_DT_ENDPOINT,
             .bEndpointAddress = USB_DIR_IN | BULKIN_ENDPOINT_ADDRESS,
             .bmAttributes = USB_ENDPOINT_XFER_BULK,
@@ -448,7 +385,7 @@ PRIVATE struct usb_descriptors_s {
             .bInterval = 0,
         },
         .bulkout = {
-            .bLength = sizeof descriptors.fs_descs.bulkout,
+            .bLength = sizeof(usb_descriptors.fs_descs.bulkout),
             .bDescriptorType = USB_DT_ENDPOINT,
             .bEndpointAddress = USB_DIR_OUT | BULKOUT_ENDPOINT_ADDRESS,
             .bmAttributes = USB_ENDPOINT_XFER_BULK,
@@ -456,7 +393,7 @@ PRIVATE struct usb_descriptors_s {
             .bInterval = 0,
         },
         .intr = {
-            .bLength = sizeof descriptors.fs_descs.intr,
+            .bLength = sizeof(usb_descriptors.fs_descs.intr),
             .bDescriptorType = USB_DT_ENDPOINT,
             .bEndpointAddress = USB_DIR_IN | INTRPTIN_ENDPOINT_ADDRESS,
             .bmAttributes = USB_ENDPOINT_XFER_INT,
@@ -464,9 +401,10 @@ PRIVATE struct usb_descriptors_s {
             .bInterval = INTERRUPT_IN_INTERVAL_FS,
         },
     },
+    .hs_count = __cpu_to_le32(4),
     .hs_descs = {
         .intf = {
-            .bLength = sizeof descriptors.hs_descs.intf,
+            .bLength = sizeof(usb_descriptors.hs_descs.intf),
             .bDescriptorType = USB_DT_INTERFACE,
             .bInterfaceNumber = 0,
             .bAlternateSetting = 0,
@@ -477,7 +415,7 @@ PRIVATE struct usb_descriptors_s {
             .iInterface = STRINGID_INTERFACE,
         },
         .bulkin = {
-            .bLength = sizeof descriptors.hs_descs.bulkin,
+            .bLength = sizeof(usb_descriptors.hs_descs.bulkin),
             .bDescriptorType = USB_DT_ENDPOINT,
             .bEndpointAddress = USB_DIR_IN | BULKIN_ENDPOINT_ADDRESS,
             .bmAttributes = USB_ENDPOINT_XFER_BULK,
@@ -485,7 +423,7 @@ PRIVATE struct usb_descriptors_s {
             .bInterval = 0,
         },
         .bulkout = {
-            .bLength = sizeof descriptors.hs_descs.bulkout,
+            .bLength = sizeof(usb_descriptors.hs_descs.bulkout),
             .bDescriptorType = USB_DT_ENDPOINT,
             .bEndpointAddress = USB_DIR_OUT | BULKOUT_ENDPOINT_ADDRESS,
             .bmAttributes = USB_ENDPOINT_XFER_BULK,
@@ -493,7 +431,7 @@ PRIVATE struct usb_descriptors_s {
             .bInterval = 0,
         },
         .intr = {
-            .bLength = sizeof descriptors.hs_descs.intr,
+            .bLength = sizeof(usb_descriptors.hs_descs.intr),
             .bDescriptorType = USB_DT_ENDPOINT,
             .bEndpointAddress = USB_DIR_IN | INTRPTIN_ENDPOINT_ADDRESS,
             .bmAttributes = USB_ENDPOINT_XFER_INT,
@@ -501,9 +439,11 @@ PRIVATE struct usb_descriptors_s {
             .bInterval = INTERRUPT_IN_INTERVAL_HS,
         },
     },
+#if defined(_ENABLE_SUPERSPEED)
+    .ss_count = __cpu_to_le32(7),
     .ss_descs = {
         .intf = {
-            .bLength = sizeof descriptors.ss_descs.intf,
+            .bLength = sizeof(usb_descriptors.ss_descs.intf),
             .bDescriptorType = USB_DT_INTERFACE,
             .bInterfaceNumber = 0,
             .bAlternateSetting = 0,
@@ -514,7 +454,7 @@ PRIVATE struct usb_descriptors_s {
             .iInterface = STRINGID_INTERFACE,
         },
         .bulkin = {
-            .bLength = sizeof descriptors.ss_descs.bulkin,
+            .bLength = sizeof(usb_descriptors.ss_descs.bulkin),
             .bDescriptorType = USB_DT_ENDPOINT,
             .bEndpointAddress = USB_DIR_IN | BULKIN_ENDPOINT_ADDRESS,
             .bmAttributes = USB_ENDPOINT_XFER_BULK,
@@ -522,14 +462,14 @@ PRIVATE struct usb_descriptors_s {
             .bInterval = 0,
         },
         .bulkin_comp = {
-            .bLength = sizeof descriptors.ss_descs.bulkin_comp,
+            .bLength = sizeof(usb_descriptors.ss_descs.bulkin_comp),
             .bDescriptorType = USB_DT_SS_ENDPOINT_COMP,
             .bMaxBurst = 0,
             .bmAttributes = 0,
             .wBytesPerInterval = 0,
         },
         .bulkout = {
-            .bLength = sizeof descriptors.ss_descs.bulkout,
+            .bLength = sizeof(usb_descriptors.ss_descs.bulkout),
             .bDescriptorType = USB_DT_ENDPOINT,
             .bEndpointAddress = USB_DIR_OUT | BULKOUT_ENDPOINT_ADDRESS,
             .bmAttributes = USB_ENDPOINT_XFER_BULK,
@@ -537,14 +477,14 @@ PRIVATE struct usb_descriptors_s {
             .bInterval = 0,
         },
         .bulkout_comp = {
-            .bLength = sizeof descriptors.ss_descs.bulkout_comp,
+            .bLength = sizeof(usb_descriptors.ss_descs.bulkout_comp),
             .bDescriptorType = USB_DT_SS_ENDPOINT_COMP,
             .bMaxBurst = 0,
             .bmAttributes = 0,
             .wBytesPerInterval = 0,
         },
         .intr = {
-            .bLength = sizeof descriptors.ss_descs.intr,
+            .bLength = sizeof(usb_descriptors.ss_descs.intr),
             .bDescriptorType = USB_DT_ENDPOINT,
             .bEndpointAddress = USB_DIR_IN | INTRPTIN_ENDPOINT_ADDRESS,
             .bmAttributes = USB_ENDPOINT_XFER_INT,
@@ -552,16 +492,18 @@ PRIVATE struct usb_descriptors_s {
             .bInterval = INTERRUPT_IN_INTERVAL_SS,
         },
         .intr_comp = {
-            .bLength = sizeof descriptors.ss_descs.intr_comp,
+            .bLength = sizeof(usb_descriptors.ss_descs.intr_comp),
             .bDescriptorType = USB_DT_SS_ENDPOINT_COMP,
             .bMaxBurst = 0,
             .bmAttributes = 0,
             .wBytesPerInterval = __cpu_to_le16(INTERRUPT_IN_MAXPACKET),
         },
     },
+#else /* _ENABLE_SUPERSPEED */
+    .ss_count = __cpu_to_le32(0),
+#endif /* _ENABLE_SUPERSPEED */
 };
 
-#endif /* ELEMENTAL_SUPERSPEED */
 
 /*-------------------------------------------------------------------------*/
 /* USBTMC Bulk message headers */
@@ -571,7 +513,7 @@ struct usbtmc_bulk_out_hdr
     __u8    bTag;
     __u8    bTagInv;
     __u8    bReserve;
-};
+} __attribute__((packed));
 
 struct usbtmc_bulk_out_msg
 {
@@ -579,7 +521,7 @@ struct usbtmc_bulk_out_msg
     __u32                           lTransferSize;
     __u8                            bmTransfer;
     __u8                            bRes[3];
-};
+} __attribute__((packed));
 
 struct usbtmc_bulk_in_hdr
 {
@@ -587,7 +529,7 @@ struct usbtmc_bulk_in_hdr
     __u8    bTag;
     __u8    bTagInv;
     __u8    bRes;
-};
+} __attribute__((packed));
 
 struct usbtmc_bulk_in_msg
 {
@@ -595,7 +537,7 @@ struct usbtmc_bulk_in_msg
     __u32                           lTransferSize;
     __u8                            bmTransAttribute;
     __u8                            bRes[3];
-};
+} __attribute__((packed));
 
 struct usbtmc488_req_dev_dep_msg
 {
@@ -604,7 +546,7 @@ struct usbtmc488_req_dev_dep_msg
     __u8                            bmTransAttribute;
     __u8                            termChar;
     __u8                            bRes[2];
-};
+} __attribute__((packed));
 
 /*-------------------------------------------------------------------------*/
 /* USBTMC control response
@@ -613,29 +555,38 @@ PRIVATE struct usbtmc_get_cap_resp
 {
     __u8    bStatus;
     __u8    bRes1;
-    __u8    bUSBTMCVersion[2];
+#define _GCR_USBTMC_VERSION 0x0100
+    __u16   bUSBTMCVersion;
+#define _GCR_ICAPS_LISTENONLY     (0x01 << 0)     /* Listen-only interface */
+#define _GCR_ICAPS_TALKONLY       (0x01 << 1)     /* Talk-only interface */
+#define _GCR_ICAPS_INDPULSE       (0x01 << 2)     /* Interface accepts the INDICATOR_PULSE request */
     __u8    bUSBTMCIfaceCap;
+#define _GCR_DCAPS_TERMCHAR       (0x01 << 0)     /* Termination character supported */
     __u8    bUSBTMCDevCap;
     __u8    bRes2[6];
-    __u8    bUSB488Version[2];
+#define _GCR_USB488_VERSION 0x0100
+    __u16    bUSB488Version;
+#define _GCR_488IC_TRIG           (0x01 << 0)     /* Interface accepts the TRIGGER message identifier */
+#define _GCR_488IC_REMLOC         (0x01 << 1)     /* Interface accepts REN_CONTROL, GO_TO_LOCAL, and LOCAL_LOCKOUT commands */
+#define _GCR_488IC_488_2          (0x01 << 2)     /* Interface conforms to IEEE 488.2 interface specification */
     __u8    bUSB488IfaceCap;
+#define _GCR_488DC_DT1            (0x01 << 0)     /* Device is DT1 capable */
+#define _GCR_488DC_RL1            (0x01 << 1)     /* Device is RL1 capable */
+#define _GCR_488DC_SR1            (0x01 << 2)     /* Device is SR1 capable */
+#define _GCR_488DC_SCPI           (0x01 << 3)     /* Device understands all SCPI commands */
     __u8    bUSB488DevCap;
     __u8    bRes3[8];
-} usbtmc_get_cap_resp =
+} __attribute__((packed)) usbtmc_get_cap_resp =
 {
-    .bStatus =          STATUS_SUCCESS,
+    .bStatus =          USBTMC_STATUS_SUCCESS,
     .bRes1 =            0,
-    .bUSBTMCVersion =   { 0x00, 0x01}, /* 1.0 */
-    .bUSBTMCIfaceCap =  0, /* Does not accept indicator pulse; not talk-only;
-                  * not listen-only */
+    .bUSBTMCVersion =   _GCR_USBTMC_VERSION,
+    .bUSBTMCIfaceCap =  0, /* Does not accept indicator pulse; not talk-only; not listen-only */
     .bUSBTMCDevCap =    0, /* Bulk-in end not supported by termchar match */
     .bRes2 =            { 0, 0, 0, 0, 0, 0 },
-    .bUSB488Version =   { 0x00, 0x01}, /* 1.0 */
-    .bUSB488IfaceCap =  0x07, /* USB488 +
-                             * REN_CONTROL/GO_TO_LOCAL/LOCAL_LOCKOUT +
-                 * TRIGGER
-                 */
-    .bUSB488DevCap =    0x05, /* SR1 + DT1 */
+    .bUSB488Version =   _GCR_USB488_VERSION,
+    .bUSB488IfaceCap =  (_GCR_488IC_TRIG | _GCR_488IC_REMLOC | _GCR_488IC_488_2),
+    .bUSB488DevCap =    (_GCR_488DC_DT1 | _GCR_488DC_RL1 | _GCR_488DC_SR1 | _GCR_488DC_SCPI),
     .bRes3 =            { 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
@@ -643,7 +594,7 @@ PRIVATE struct usbtmc_short_resp
 {
     __u8    bStatus;
     __u8    bData;
-} usbtmc_short_resp =
+} __attribute__((packed)) usbtmc_short_resp =
 {
     .bStatus =    0,
     .bData =      0
@@ -652,23 +603,23 @@ PRIVATE struct usbtmc_short_resp
 PRIVATE struct usbtmc_check_abort_resp
 {
     __u8    bStatus;
-    __u8	bmAbortBulkIn;
+    __u8    bmAbortBulkIn;
     __u8    bRes[2];
     __u32   lNbytesXD;
-} usbtmc_check_abort_resp;
+} __attribute__((packed)) usbtmc_check_abort_resp;
 
 PRIVATE struct usbtmc_read_sb_resp
 {
     __u8    bStatus;
     __u8    bTag;
     __u8    bStatusByte;
-} usbtmc_read_sb_resp;
+} __attribute__((packed)) usbtmc_read_sb_resp;
 
 PRIVATE struct usbtmc_interrupt_in_resp
 {
     __u8    bNotify1;
     __u8    bNotify2;
-} usbtmc_interrupt_in_resp;
+} __attribute__((packed)) usbtmc_interrupt_in_resp;
 
 /* For writing response data and handling bulkin requests. These
  * data items are protected by the RESPONSE_LOCK semaphore.
@@ -689,7 +640,7 @@ typedef struct
 {
     struct usbtmc_bulk_in_msg  header;
     __u8                       data[];
-} ResponseMsgType;
+} __attribute__((packed)) ResponseMsgType;
 
 /* malloc'd in usbtmc488_enable_interface()
  * and freed in usbtmc488_disable_interface().
@@ -713,12 +664,11 @@ struct usb_functionfs_stringtab {
     char str[];
 } __attribute__((packed));
 
-struct usb_functionfs_stringtab *strings;
+struct usb_functionfs_stringtab *usb_strings = NULL;
 
 /*-------------------------------------------------------------------------*/
 
-PRIVATE int      HIGHSPEED_CAPABLE;
-PRIVATE char	*EP0_NAME      = NULL,
+PRIVATE char    *EP0_NAME     = NULL,
                 *EP_IN_NAME   = NULL,
                 *EP_OUT_NAME  = NULL,
                 *EP_INTR_NAME = NULL;
@@ -743,9 +693,9 @@ PRIVATE int autoconfig();
 PRIVATE void close_fd(void *fd_ptr);
 PRIVATE int ep_config(char *name, const char *callingFunc);
 PRIVATE void process_dev_dep_msg_in(struct usbtmc_bulk_in_msg *msg);
-PRIVATE USBTMC488_STATUS queue_response_msg( const USBTMC488_MESSAGE *usbtmc488_msg );
-PRIVATE void usbtmc_intrpt_thread_cleanup(void*);
-PRIVATE void usbtmc_request_thread_cleanup(void*);
+PRIVATE USBTMC488_STATUS queue_response_msg(const USBTMC488_MESSAGE *usbtmc488_msg);
+PRIVATE void usbtmc_intrpt_thread_cleanup(void *dummy);
+PRIVATE void usbtmc_request_thread_cleanup(void *dummy);
 PRIVATE void * usbtmc_request_thread(void *param);
 PRIVATE void * usbtmc_intrpt_thread(void *param);
 PRIVATE int start_io();
@@ -754,8 +704,8 @@ PRIVATE int init_device(void);
 PRIVATE int handle_tmc_control(int fd, struct usb_ctrlrequest *setup);
 PRIVATE void handle_control(int fd, struct usb_ctrlrequest *setup);
 PRIVATE void * ep0_thread(void *param);
-PRIVATE void usbtmc488_sleep( unsigned int numMilliseconds );
-PRIVATE int timed_wait( USBTMC488_LOCK_TYPE lockType, int msecs );
+PRIVATE void usbtmc488_usleep(unsigned int numMilliseconds);
+PRIVATE int timed_wait(USBTMC488_LOCK_TYPE lockType, int msecs);
 
 typedef enum
 {
@@ -767,135 +717,101 @@ typedef enum
 
 PRIVATE USBTMC488_THREAD_INFO usbtmcThreadArray[USBTMC488_NUM_THREADS];
 
-#define WAITFOR(type)                                                     \
-    sem_status = 0;                                                   \
-    usbtmcDbgPrint(USBTMC488_EVENTS, "%s: WAITFOR: %s: ENTRY\n",      \
-        __FUNCTION__, lockTypeStrings[type]);                     \
-                                                                          \
-    if ( 0 != (sem_status = sem_wait(pLockArray[type])) )             \
-    {                                                                 \
-        sem_errno = errno;                                        \
-        usbtmc488_tsprintf(                                       \
-            "usbtmc488: %s: error locking %s semaphore\n"     \
-            "  error: %d (%s)\n",                             \
-            __FUNCTION__,                                     \
-            lockTypeStrings[type],                            \
-            sem_status,                                       \
-            strerror(sem_errno));                             \
-    }                                                                 \
-                                                                          \
-    usbtmcDbgPrint(USBTMC488_EVENTS, "%s: WAITFOR: %s: EXIT\n",       \
-        __FUNCTION__, lockTypeStrings[type]);
+#define WAITFOR(type)                                                   \
+    sem_status = 0;                                                     \
+    usbtmcDbgPrint(USBTMC488_EVENTS, "%s: WAITFOR: %s: ENTRY\n",        \
+        __FUNCTION__, lockInfo[type].name);                             \
+                                                                        \
+    if ((sem_status = sem_wait(lockInfo[type].pLock)) != 0)             \
+    {                                                                   \
+        sem_errno = errno;                                              \
+        usbtmc488_tsprintf(                                             \
+            "usbtmc488: %s: error locking %s semaphore\n"               \
+            "  error: %d (%s)\n",                                       \
+            __FUNCTION__,                                               \
+            lockInfo[type].name,                                        \
+            sem_status,                                                 \
+            strerror(sem_errno));                                       \
+    }                                                                   \
+                                                                        \
+    usbtmcDbgPrint(USBTMC488_EVENTS, "%s: WAITFOR: %s: EXIT\n",         \
+        __FUNCTION__, lockInfo[type].name);
 
-#define UNLOCK(type)                                                      \
-    sem_status = 0;                                                   \
-    usbtmcDbgPrint(USBTMC488_SYNCH, "%s: UNLOCK: %s: ENTRY\n",        \
-        __FUNCTION__, lockTypeStrings[type]);                     \
-                                                                          \
-    sem_status = sem_trywait(pLockArray[type]);                       \
-    if ( (0 != sem_status) && (EAGAIN != errno) )                     \
-    {                                                                 \
-        sem_errno = errno;                                        \
-        usbtmc488_tsprintf(                                       \
-            "usbtmc488: %s: sem_trywait error for"            \
-            "  %s semaphore\n"                                \
-            "  error: %d (%s)\n",                             \
-            __FUNCTION__,                                     \
-            lockTypeStrings[type],                            \
-            sem_status,                                       \
-            strerror(sem_errno));                             \
-    }                                                                 \
-    if ( 0 != (sem_status = sem_post(pLockArray[type])) )             \
-    {                                                                 \
-        sem_errno = errno;                                        \
-        usbtmc488_tsprintf(                                       \
-            "usbtmc488: %s: error unlocking %s semaphore\n"   \
-            "  error: %d (%s)\n",                             \
-            __FUNCTION__,                                     \
-            lockTypeStrings[type],                            \
-            sem_status,                                       \
-            strerror(sem_errno));                             \
-    }                                                                 \
-                                                                          \
-    usbtmcDbgPrint(USBTMC488_SYNCH, "%s: UNLOCK: %s: EXIT\n",         \
-        __FUNCTION__, lockTypeStrings[type]);
+#define UNLOCK(type)                                                    \
+    sem_status = 0;                                                     \
+    usbtmcDbgPrint(USBTMC488_SYNCH, "%s: UNLOCK: %s: ENTRY\n",          \
+        __FUNCTION__, lockInfo[type].name);                             \
+                                                                        \
+    sem_status = sem_trywait(lockInfo[type].pLock);                     \
+    if ((sem_status != 0) && (errno != EAGAIN))                         \
+    {                                                                   \
+        sem_errno = errno;                                              \
+        usbtmc488_tsprintf(                                             \
+            "usbtmc488: %s: sem_trywait error for"                      \
+            "  %s semaphore\n"                                          \
+            "  error: %d (%s)\n",                                       \
+            __FUNCTION__,                                               \
+            lockInfo[type].name,                                        \
+            sem_status,                                                 \
+            strerror(sem_errno));                                       \
+    }                                                                   \
+    if ((sem_status = sem_post(lockInfo[type].pLock)) != 0)             \
+    {                                                                   \
+        sem_errno = errno;                                              \
+        usbtmc488_tsprintf(                                             \
+            "usbtmc488: %s: error unlocking %s semaphore\n"             \
+            "  error: %d (%s)\n",                                       \
+            __FUNCTION__,                                               \
+            lockInfo[type].name,                                        \
+            sem_status,                                                 \
+            strerror(sem_errno));                                       \
+    }                                                                   \
+                                                                        \
+    usbtmcDbgPrint(USBTMC488_SYNCH, "%s: UNLOCK: %s: EXIT\n",           \
+        __FUNCTION__, lockInfo[type].name);
 
-#define SIGNAL_EVENT	UNLOCK
+#define SIGNAL_EVENT    UNLOCK
 
-#define UNSIGNAL_EVENT(type)                                                \
+#define UNSIGNAL_EVENT(type)                                            \
     sem_status = 0;                                                     \
     usbtmcDbgPrint(USBTMC488_EVENTS, "%s: UNSIGNAL_EVENT: %s: ENTRY\n", \
-        __FUNCTION__, lockTypeStrings[type]);                       \
-                                                                            \
-    sem_status = sem_trywait(pLockArray[type]);                         \
-    if ( (0 != sem_status) && (EAGAIN != errno) )                       \
+        __FUNCTION__, lockInfo[type].name);                             \
+                                                                        \
+    sem_status = sem_trywait(lockInfo[type].pLock);                     \
+    if ((sem_status != 0) && (errno != EAGAIN))                         \
     {                                                                   \
-        sem_errno = errno;                                          \
-        usbtmc488_tsprintf(                                         \
-            "usbtmc488: %s: error unsignaling %s\n"             \
-            "  error: %d (%s)   \n",                            \
-            __FUNCTION__,                                       \
-            lockTypeStrings[type],                              \
-            sem_status,                                         \
-            strerror(sem_errno));                               \
+        sem_errno = errno;                                              \
+        usbtmc488_tsprintf(                                             \
+            "usbtmc488: %s: error unsignaling %s\n"                     \
+            "  error: %d (%s)   \n",                                    \
+            __FUNCTION__,                                               \
+            lockInfo[type].name,                                        \
+            sem_status,                                                 \
+            strerror(sem_errno));                                       \
     }                                                                   \
-                                                                            \
+                                                                        \
     usbtmcDbgPrint(USBTMC488_EVENTS, "%s: UNSIGNAL_EVENT: %s: EXIT\n",  \
-        __FUNCTION__, lockTypeStrings[type]);
+        __FUNCTION__, lockInfo[type].name);
 
 PRIVATE void
 usbtmcDbgPrint(int bit, const char *fmt, ...)
 {
-    int sem_status = 0, sem_errno = 0;
-    if ( !(verbosity & bit) )
+    if (verbosity & bit)
     {
-        return;
-    }
-    if ( TRUE == driver_initialized )
-    {
-        if ( 0 != (sem_status = sem_wait(&debugLock)) )
-        {
-            sem_errno = errno;
-            usbtmc488_tsprintf(
-                "usbtmc488: %s: error locking debugLock semaphore\n"
-                "  error: %d (%s)\n",
-                __FUNCTION__,
-                sem_status,
-                strerror(sem_errno));
-        }
-    }
-    va_list ap;
+        va_list ap;
 
-    if ( verbosity & bit )
-    {
         usbtmc488_tsprintf("usbtmc488: ");
         va_start(ap, fmt);
         vprintf(fmt, ap);
         va_end(ap);
+
         fflush(stdout);
-    }
-    if ( TRUE == driver_initialized )
-    {
-        if ( 0 != (sem_status = sem_post(&debugLock)) )
-        {
-            sem_errno = errno;
-            usbtmc488_tsprintf(
-                "usbtmc488: %s: error unlocking debugLock semaphore\n"
-                "  error: %d (%s)\n",
-                __FUNCTION__,
-                sem_status,
-                strerror(sem_errno));
-        }
     }
 }
 
 PRIVATE int
 autoconfig()
 {
-    // CJS - How to tell we're using net2280?
-    usbtmcDbgPrint(USBTMC488_SYSTEM, "%s: net2280\n", __FUNCTION__);
-    HIGHSPEED_CAPABLE = 1;
-
     EP0_NAME = (char *) "/dev/gadget/ep0";
     EP_IN_NAME = (char *) "/dev/gadget/ep1";
     EP_OUT_NAME = (char *) "/dev/gadget/ep2";
@@ -927,17 +843,17 @@ typedef enum
     BULK_EP_HALT
 } BULK_EP_STATE;
 
-PRIVATE BULK_EP_STATE	bulkin_state      = BULK_EP_ERROR;
-PRIVATE BULK_EP_STATE	bulkout_state     = BULK_EP_ERROR;
+PRIVATE BULK_EP_STATE   bulkin_state      = BULK_EP_ERROR;
+PRIVATE BULK_EP_STATE   bulkout_state     = BULK_EP_ERROR;
 
-PRIVATE pthread_t		ep0_tid         = (pthread_t)-1;
-PRIVATE pthread_t		bulkout_tid     = (pthread_t)-1;
-PRIVATE pthread_t		intr_tid        = (pthread_t)-1;
+PRIVATE pthread_t       ep0_tid         = (pthread_t)-1;
+PRIVATE pthread_t       bulkout_tid     = (pthread_t)-1;
+PRIVATE pthread_t       intr_tid        = (pthread_t)-1;
 
-PRIVATE int				ep0_fd          = -ENXIO;
-PRIVATE int				bulkin_fd       = -ENXIO;
-PRIVATE int				bulkout_fd      = -ENXIO;
-PRIVATE int				intr_fd         = -ENXIO;
+PRIVATE int             ep0_fd          = -ENODEV;
+PRIVATE int             bulkin_fd       = -ENODEV;
+PRIVATE int             bulkout_fd      = -ENODEV;
+PRIVATE int             intr_fd         = -ENODEV;
 
 PRIVATE void
 close_fd(void *fd_ptr)
@@ -947,24 +863,24 @@ close_fd(void *fd_ptr)
 #endif /* FUNCTIONFS_FIFO_STATUS_IMPLEMENTED && FUNCTIONFS_FIFO_FLUSH_IMPLEMENTED */
     int     fd;
 
-    fd = *(int *)fd_ptr;
-    *(int *)fd_ptr = -EINVAL;
+    fd = *((int *)fd_ptr);
+    *((int *)fd_ptr) = -ENODEV;
 
-    if ( -EINVAL == fd )
+    if (fd < 0)
     {
-        usbtmc488_tsprintf("%s: invalid file descriptor\n", __FUNCTION__);
+        usbtmc488_tsprintf("%s: invalid file descriptor (%d)\n", __FUNCTION__, fd);
         return;
     }
 
 #if (FUNCTIONFS_FIFO_STATUS_IMPLEMENTED && FUNCTIONFS_FIFO_FLUSH_IMPLEMENTED)
     /* test the FIFO ioctls (non-ep0 code paths) */
-    if ( pthread_self() != ep0_tid )
+    if (pthread_self() != ep0_tid)
     {
         status = ioctl(fd, FUNCTIONFS_FIFO_STATUS);
-        if ( status < 0 )
+        if (status < 0)
         {
             /* ENODEV reported after disconnect */
-            if ( errno != ENODEV && errno != EOPNOTSUPP  && errno != ESHUTDOWN )
+            if ((errno != ENODEV) && (errno != EOPNOTSUPP) && (errno != ESHUTDOWN))
             {
                 usbtmc488_tsprintf("%s: get fifo status error for %d: %d (%s)\n",
                     __FUNCTION__, fd, errno, strerror(errno));
@@ -975,10 +891,10 @@ close_fd(void *fd_ptr)
             usbtmc488_tsprintf(
                 "usbtmc488: %s: fd %d, unclaimed = %d\n",
                 __FUNCTION__, fd, status);
-            if ( status )
+            if (status)
             {
                 status = ioctl(fd, FUNCTIONFS_FIFO_FLUSH);
-                if ( status < 0 )
+                if (status < 0)
                 {
                     usbtmc488_tsprintf("%s: fifo flush error for %d: %d (%s)\n",
                         __FUNCTION__, fd, errno, strerror(errno));
@@ -988,7 +904,7 @@ close_fd(void *fd_ptr)
     }
 #endif /* FUNCTIONFS_FIFO_STATUS_IMPLEMENTED && FUNCTIONFS_FIFO_FLUSH_IMPLEMENTED */
 
-    if ( close(fd) < 0 )
+    if (close(fd) < 0)
     {
         usbtmc488_tsprintf("%s: error closing %d: errno=%d (%s)\n",
             __FUNCTION__, fd, errno, strerror(errno));
@@ -1000,13 +916,13 @@ close_fd(void *fd_ptr)
  * whether or not the host is connected
  */
 PRIVATE int
-ep_config( char *name, const char *callingFunc )
+ep_config(char *name, const char *callingFunc)
 {
     int             fd, status;
 
     /* open and initialize with endpoint descriptor(s) */
     fd = open(name, O_RDWR);
-    if ( fd < 0 )
+    if (fd < 0)
     {
         status = -errno;
         usbtmc488_tsprintf("usbtmc488: %s: %s: open %s error %d (%s)\n",
@@ -1035,7 +951,7 @@ process_dev_dep_msg_in(struct usbtmc_bulk_in_msg *msg)
 
     __u8    *data = (__u8 *)(msg+1);
 
-    usbtmcDbgPrint(	USBTMC488_EP_BULKIN,
+    usbtmcDbgPrint(USBTMC488_EP_BULKIN,
             "%s:\n"
             "    Header->bMsgID     = %d\n"
             "    Header->bTag       = 0x%x\n"
@@ -1050,11 +966,11 @@ process_dev_dep_msg_in(struct usbtmc_bulk_in_msg *msg)
             msg->bmTransAttribute);
 
     WAITFOR(RESPONSE_LOCK);
-    if ( REQUEST_DEV_DEP_MSG_IN == msg->sHdr.bMsgID )
+    if (msg->sHdr.bMsgID == USBTMC_REQ_DEV_DEP_MSG_IN)
     {
         eventMsg.type   = USBTMC488_MSG_DATA_REQUESTED;
         /* Copy the request header for use in the response message */
-        memcpy(	&last_req_dev_dep_msgin_msg,
+        memcpy(&last_req_dev_dep_msgin_msg,
             msg,
             sizeof(last_req_dev_dep_msgin_msg));
         responseState = DATA_REQUESTED;
@@ -1064,7 +980,7 @@ process_dev_dep_msg_in(struct usbtmc_bulk_in_msg *msg)
     else
     {
         responseState = IDLE;
-        if ( msg->bmTransAttribute & 0x01 )
+        if (msg->bmTransAttribute & 0x01)
         {
             eventMsg.type = USBTMC488_MSG_DATA_WITH_EOM;
         }
@@ -1093,7 +1009,7 @@ process_dev_dep_msg_in(struct usbtmc_bulk_in_msg *msg)
  * USBTMC488_MSG_DATA_WITHOUT_EOM or USBTMC488_MSG_DATA_WITH_EOM, resulting
  * in this function being called.
  *
- * No data can be output until the host requests it via the REQUEST_DEV_DEP_MSG_IN
+ * No data can be output until the host requests it via the USBTMC_REQ_DEV_DEP_MSG_IN
  * message on the bulk-out endpoint. When such a message is received, the
  * TALKADDR_OR_TERMINATE event is signalled and the global variable responseState
  * is set to DATA_REQUESTED. It's also possible that any pending or in-progress
@@ -1103,37 +1019,37 @@ process_dev_dep_msg_in(struct usbtmc_bulk_in_msg *msg)
  * The terminology "TALKADDR" stands for "talk-addressed" and is from the IEEE488.2
  * protocol terminology that means that the host has sent a "byte request" message
  * to this device's "talk-address". In our USBTMC context, it means that the host
- * has sent us a REQUEST_DEV_DEP_MSG_IN message.
+ * has sent us a USBTMC_REQ_DEV_DEP_MSG_IN message.
  *
  * Following are the causal conditions and the values of responseState when the
  * TALKADDR_OR_TERMINATE event is signalled:
  *
- *    Condition                            responseState
- *    -----------------------------------  --------------------------------
- *    REQUEST_DEV_DEP_MSG_IN message       DATA_REQUESTED
+ *    Condition                             responseState
+ *    -----------------------------------   --------------------------------
+ *    USBTMC_REQ_DEV_DEP_MSG_IN message     DATA_REQUESTED
  *    received on bulk-out EP.
  *
- *    USBTMC_REQ_INITIATE_ABORT_BULK_IN    TERMINATE
+ *    USBTMC_REQ_INITIATE_ABORT_BULK_IN     TERMINATE
  *    message received on control EP.
  *
- *    USBTMC_REQ_INITIATE_CLEAR message    TERMINATE
+ *    USBTMC_REQ_INITIATE_CLEAR message     TERMINATE
  *    received on control EP.
  *
- *    USBTMC488_MSG_CANCEL_IO message      TERMINATE
+ *    USBTMC488_MSG_CANCEL_IO message       TERMINATE
  *    received from application via API
  *    call to usbtmc488_message().
  *
  * The buffer containing the data for output is provided by the application
  * and may be any size. The maximum amount of data that we can output in
- * a given transfer is specified by the host in the REQUEST_DEV_DEP_MSG_IN message.
+ * a given transfer is specified by the host in the USBTMC_REQ_DEV_DEP_MSG_IN message.
  * This message is kept in the thread-safe global struct last_req_dev_dep_msgin_msg.
  * The local variable request_size represents this maximum value. So, it's
  * possible that the application may have more data to output than the host is
  * able to consume in a single transfer. In such cases, we need to send the
  * amount of data the host requested and then wait for the host to request more
- * data (when it sends a REQUEST_DEV_DEP_MSG_IN message) or to request that we abort
+ * data (when it sends a USBTMC_REQ_DEV_DEP_MSG_IN message) or to request that we abort
  * the transfer. This level of the protocol is handled by the outer while loop in
- * this function ( while ( !bDone ) ). The completion of a transfer is indicated
+ * this function (while (!bDone)). The completion of a transfer is indicated
  * to the USB host by the USBTMC message header bmTransAttribute bit: 1 = EOM
  * (end of message).
  *
@@ -1163,7 +1079,7 @@ process_dev_dep_msg_in(struct usbtmc_bulk_in_msg *msg)
  * that can fit in the allocated response buffer (pResponseMsg->data). The amount of
  * data sent with these transactions is computed in the local variable payloadSize.
  * This level of the transfer is handled by the inner while loop in this function
- * (  while ( transferSize > 0 ) ).
+ * (while (transferSize > 0)).
  *
  * We also must conform to the short packet protocol requirement which says that if
  * the last data payload in a transfer is a full packet (e.g. 512 bytes for HS or
@@ -1186,7 +1102,7 @@ process_dev_dep_msg_in(struct usbtmc_bulk_in_msg *msg)
  *                    >  nR
  */
 PRIVATE USBTMC488_STATUS
-queue_response_msg( const USBTMC488_MESSAGE *usbtmc488_msg )
+queue_response_msg(const USBTMC488_MESSAGE *usbtmc488_msg)
 {
     int                        sem_status        = 0,
                                sem_errno         = 0;
@@ -1210,26 +1126,25 @@ queue_response_msg( const USBTMC488_MESSAGE *usbtmc488_msg )
     size_t                     padBytes          = 0;
     USBTMC488_STATUS retStatus                   = USBTMC488_SUCCESS;
 
-    if ( 0 == MaxTransferSize )
+    if (MaxTransferSize == 0)
     {
         retStatus = USBTMC488_INTERFACE_NOT_ENABLED;
         bDone = TRUE;
     }
 
     UNLOCK(RESPONSE_LOCK);
-    while ( !bDone )
+    while (!bDone)
     {
         WAITFOR(TALKADDR_OR_TERMINATE);
         WAITFOR(RESPONSE_LOCK);
-        if ( NULL == pResponseMsg )
+        if (pResponseMsg == NULL)
         {
             usbtmc488_tsprintf("%s: disconnected\n", __FUNCTION__);
             bDone = TRUE;
             continue;
         }
-        if ( (DATA_REQUESTED != responseState) &&
-             (IN_PROGRESS != responseState)
-           )
+        if ((responseState != DATA_REQUESTED) &&
+            (responseState != IN_PROGRESS))
         {
             responseState = TERMINATE;
             retStatus = USBTMC488_NO_DATA_REQUESTED;
@@ -1247,9 +1162,9 @@ queue_response_msg( const USBTMC488_MESSAGE *usbtmc488_msg )
         }
 
         request_size = __le32_to_cpu(last_req_dev_dep_msgin_msg.lTransferSize);
-        memcpy( &(pResponseMsg->header),
+        memcpy(&(pResponseMsg->header),
             &last_req_dev_dep_msgin_msg,
-            sizeof(pResponseMsg->header) );
+            sizeof(pResponseMsg->header));
 
         transferSize = min(request_size, bytes_remaining);
         payloadSize = min(transferSize, MaxTransferSize-sizeof(struct usbtmc_bulk_in_msg));
@@ -1258,8 +1173,8 @@ queue_response_msg( const USBTMC488_MESSAGE *usbtmc488_msg )
         pResponseMsg->header.bRes[0] =
             pResponseMsg->header.bRes[1] =
             pResponseMsg->header.bRes[2] = 0;
-        if ( (transferSize == bytes_remaining) &&
-             (usbtmc488_msg->type == USBTMC488_MSG_DATA_WITH_EOM) )
+        if ((transferSize == bytes_remaining) &&
+             (usbtmc488_msg->type == USBTMC488_MSG_DATA_WITH_EOM))
         {
             pResponseMsg->header.bmTransAttribute = 0x01;
         }
@@ -1272,23 +1187,23 @@ queue_response_msg( const USBTMC488_MESSAGE *usbtmc488_msg )
         WAITFOR(BULKIN_LOCK);
         pWriteBuffer = (__u8 *)pResponseMsg;
 
-        while ( transferSize > 0 )
+        while (transferSize > 0)
         {
             memcpy(pResponseMsg->data, pInputBuffer, (size_t) payloadSize);
             pInputBuffer += payloadSize;
 
             padBytes  = (ALIGNMENT - ((payloadSize)&(ALIGNMENT-1)));
-            if ( padBytes  == ALIGNMENT )
+            if (padBytes  == ALIGNMENT)
             {
                 padBytes  = 0;
             }
-            if ( 0 != padBytes )
+            if (padBytes != 0)
             {
                 memset(pResponseMsg->data+payloadSize, 0, padBytes);
             }
 
-            if ( (bytesToWrite == max_packet_size) ||
-                 ((bytesToWrite > max_packet_size) && (bytesToWrite % max_packet_size) == 0) )
+            if ((bytesToWrite == max_packet_size) ||
+                 ((bytesToWrite > max_packet_size) && (bytesToWrite % max_packet_size) == 0))
             {
                 bShortPacket = TRUE;
             }
@@ -1300,11 +1215,8 @@ queue_response_msg( const USBTMC488_MESSAGE *usbtmc488_msg )
             status = BULK_FAILURE_RETRY(
                  write(bulkin_fd,
                        pWriteBuffer,
-                       bytesToWrite)
-                 );
-            fsync(bulkin_fd);
-
-            if ( status != (int)bytesToWrite )
+                       bytesToWrite));
+            if (status != (int)bytesToWrite)
             {
                 localErrno = errno;
                 usbtmc488_tsprintf("%s: write error: wrote %d of %d bytes\n"
@@ -1327,23 +1239,21 @@ queue_response_msg( const USBTMC488_MESSAGE *usbtmc488_msg )
             bytesToWrite       = payloadSize = min(transferSize, MaxTransferSize);
         }
 
-        if ( 0 == bytes_remaining )
+        if (bytes_remaining == 0)
         {
             UNLOCK(BULKIN_LOCK);
             bDone = TRUE;
         }
 
-        if ( bShortPacket )
+        if (bShortPacket)
         {
             usbtmcDbgPrint(USBTMC488_EP_BULKIN,
                 "%s: Sending short packet\n", __FUNCTION__);
             /* Terminate the transfer with a short packet */
             memset((__u8 *)&short_packet, 0, sizeof(short_packet));
-            short_packet.sHdr.bMsgID = DEV_DEP_MSG_IN;
+            short_packet.sHdr.bMsgID = USBTMC_DEV_DEP_MSG_IN;
             status = BULK_FAILURE_RETRY(write(bulkin_fd, &short_packet, sizeof(short_packet)));
-            fsync(bulkin_fd);
-
-            if ( status != sizeof(short_packet) )
+            if (status != sizeof(short_packet))
             {
                 localErrno = errno;
                 usbtmc488_tsprintf("%s: short packet write error: wrote %d of %d bytes\n"
@@ -1374,13 +1284,13 @@ queue_response_msg( const USBTMC488_MESSAGE *usbtmc488_msg )
 }
 
 PRIVATE void
-usbtmc_intrpt_thread_cleanup(void* dummy)
+usbtmc_intrpt_thread_cleanup(void *dummy)
 {
     int sem_status = 0, sem_errno = 0;
 
     (void)dummy;
 
-    if ( 0 <= intr_fd )
+    if (intr_fd > 0)
     {
         close_fd(&intr_fd);
     }
@@ -1406,7 +1316,7 @@ usbtmc_intrpt_thread_cleanup(void* dummy)
  * waiting for the INTRPT_DONE_EVENT is done with a timeout of 10 msec.
  */
 PRIVATE void *
-usbtmc_intrpt_thread( void *param )
+usbtmc_intrpt_thread(void *param)
 {
     int         status;
     int         sem_status = 0, sem_errno = 0;
@@ -1426,11 +1336,11 @@ usbtmc_intrpt_thread( void *param )
     usbtmcDbgPrint(USBTMC488_THREADS, "%s: ENTRY\n", __FUNCTION__);
     pthread_cleanup_push(usbtmc_intrpt_thread_cleanup, NULL);
 
-    while ( TRUE == device_connected )
+    while (device_connected)
     {
         pthread_testcancel();
         WAITFOR(INTRPT_EVENT);
-        if ( TRUE != device_connected )
+        if (!device_connected)
         {
             usbtmcDbgPrint(USBTMC488_THREADS,
                 "%s: device not connected\n", __FUNCTION__);
@@ -1438,23 +1348,21 @@ usbtmc_intrpt_thread( void *param )
             continue;
         }
         usbtmcDbgPrint(USBTMC488_EP_INTRPT,
-            "%s: Writing intrpt response: bNotify1=%d, bNotify2=%d\n",
+            "%s: Writing intrpt response: bNotify1:0x%02X bNotify2:0x%02X\n",
             __FUNCTION__, usbtmc_interrupt_in_resp.bNotify1,
             usbtmc_interrupt_in_resp.bNotify2);
 
         status = TEMP_FAILURE_RETRY(
              write(intr_fd,
                    &usbtmc_interrupt_in_resp,
-                   sizeof(struct usbtmc_interrupt_in_resp))
-             );
-        fsync(intr_fd);
+                   sizeof(struct usbtmc_interrupt_in_resp)));
 
         usbtmcDbgPrint(USBTMC488_EP_INTRPT,
             "%s: Wrote intrpt response\n", __FUNCTION__);
-        if ( status != sizeof(struct usbtmc_interrupt_in_resp) )
+        if (status != sizeof(struct usbtmc_interrupt_in_resp))
         {
             localErrno = errno;
-            if ( ESHUTDOWN != localErrno )
+            if (localErrno != ESHUTDOWN)
             {
                 usbtmc488_tsprintf("%s: Error writing interrupt_in packet\n"
                         "localErrno=%d (%s)\n",
@@ -1469,13 +1377,16 @@ usbtmc_intrpt_thread( void *param )
 }
 
 PRIVATE void
-usbtmc_request_thread_cleanup(void* dummy)
+usbtmc_request_thread_cleanup(void *dummy)
 {
     int sem_status = 0, sem_errno = 0;
 
     (void)dummy;
 
-    close_fd(&bulkout_fd);
+    if (bulkout_fd > 0)
+    {
+        close_fd(&bulkout_fd);
+    }
 
     /* Under normal circumstances, the request thread should terminate
      * upon disconnect by virtue of the fact that the kernel layer should
@@ -1506,12 +1417,12 @@ usbtmc_request_thread(void *param)
     __u8                             bTransferAttribute;
     USBTMC488_MESSAGE                eventMsg;
 
-    usbtmcDbgPrint(USBTMC488_THREADS, "%s: name = %s\n", __FUNCTION__, name );
+    usbtmcDbgPrint(USBTMC488_THREADS, "%s: name = %s\n", __FUNCTION__, name);
 
     /* The bulkout endpoint should have been opened at this point and should
      * have a valid file descriptor.
      */
-    if ( bulkout_fd < 0 )
+    if (bulkout_fd < 0)
     {
         usbtmc488_tsprintf("%s: endpoint %s open failed\n", __FUNCTION__, name);
         return(0);
@@ -1541,7 +1452,7 @@ usbtmc_request_thread(void *param)
          * NOTE: Ideally, we would request only 12 bytes (the size of the
          *       message header) on the first read to obtain the message
          *       header and, if the message ID (bMsgID field in the
-         *       usbtmc_bulk_out_hdr struct) is DEV_DEP_MSG_OUT, then based on
+         *       usbtmc_bulk_out_hdr struct) is USBTMC_DEV_DEP_MSG_OUT, then based on
          *       the transfer size (lTransferSize in the usbtmc_bulk_out_msg
          *       struct), continue reading and processing the data until
          *       lTransferSize bytes of payload data have been read and processed.
@@ -1558,7 +1469,7 @@ usbtmc_request_thread(void *param)
          *       transfer size is 12 through 15 (header size + up to 3 pad bytes).
          *       For example:
          *
-         *	 Full Speed Failed Transfer Sizes
+         *   Full Speed Failed Transfer Sizes
          *         o    49 through 52 bytes (64 * 1 - 49 = 15) through (64 * 1 - 52 = 12)
          *         o    113 through 116 bytes (64 * 2 - 113 = 15) through (64 * 2 - 116 = 12)
          *         o    177 through 180 bytes (64 * 3 - 177 = 15) through (64 * 3 - 180 = 12)
@@ -1591,7 +1502,7 @@ usbtmc_request_thread(void *param)
         /* MaxTransferSize is set to 0 at the end of stop_io(). This condition means
          * it's safe to terminate the request thread.
          */
-        if ( 0 == MaxTransferSize )
+        if (MaxTransferSize == 0)
         {
             usbtmc488_tsprintf("%s: request_thread terminated: readStatus=%d\n",
                 __FUNCTION__, readStatus);
@@ -1601,9 +1512,9 @@ usbtmc_request_thread(void *param)
         }
 
         bulkout_state = BULK_EP_INPROGRESS;
-        if ( readStatus < 0 )
+        if (readStatus < 0)
         {
-            if ( ESHUTDOWN == localErrno )
+            if (localErrno == ESHUTDOWN)
             {
                 usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
                     "%s: got ESHUTDOWN reading bulkout_fd\n", __FUNCTION__);
@@ -1626,25 +1537,25 @@ usbtmc_request_thread(void *param)
         transferSize = __le32_to_cpu(msg->lTransferSize);
         bTransferAttribute = msg->bmTransfer;
 
-        /* Any message other than DEV_DEP_MSG_OUT should have
+        /* Any message other than USBTMC_DEV_DEP_MSG_OUT should have
          * no data beyond the header.
          */
-        if ( msg->sHdr.bMsgID == DEV_DEP_MSG_OUT )
+        if (msg->sHdr.bMsgID == USBTMC_DEV_DEP_MSG_OUT)
         {
             padBytes = (ALIGNMENT - ((transferSize+hdrSize)&(ALIGNMENT-1)));
-            if ( padBytes == ALIGNMENT )
+            if (padBytes == ALIGNMENT)
             {
                 padBytes = 0;
             }
             usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
-                "DEV_DEP_MSG_OUT transferSize=%d, padBytes=%d at LINE %d\n",
+                "USBTMC_DEV_DEP_MSG_OUT transferSize=%d, padBytes=%d at LINE %d\n",
                 transferSize, padBytes, __LINE__);
-            if ( readStatus >= (int)(transferSize+hdrSize) )
+            if (readStatus >= (int)(transferSize+hdrSize))
             {
                 process_dev_dep_msg_in((struct usbtmc_bulk_in_msg *) pRequestBuffer);
-                if ( readStatus >= (int)(transferSize+hdrSize+padBytes) )
+                if (readStatus >= (int)(transferSize+hdrSize+padBytes))
                 {
-                    if ( padBytes > 0 )
+                    if (padBytes > 0)
                     {
                         usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
                             "Consumed %d PAD bytes at LINE %d\n",
@@ -1657,7 +1568,7 @@ usbtmc_request_thread(void *param)
             {
                 transferBytesRead = readStatus - hdrSize;
                 msg->lTransferSize = __cpu_to_le32(transferBytesRead);
-                if ( transferBytesRead == transferSize )
+                if (transferBytesRead == transferSize)
                 {
                     msg->bmTransfer = bTransferAttribute;
                 }
@@ -1667,16 +1578,16 @@ usbtmc_request_thread(void *param)
                 }
                 process_dev_dep_msg_in((struct usbtmc_bulk_in_msg *) pRequestBuffer);
 
-                while ( transferBytesRead < transferSize )
+                while (transferBytesRead < transferSize)
                 {
                     bytesToRead = min(transferSize-transferBytesRead, MaxTransferSize);
                     msg->lTransferSize = __cpu_to_le32(bytesToRead);
                     /* We must read a multiple of 4 bytes. Read the pad bytes with the
                      * last payload read if necessary.
                      */
-                    if ( (bytesToRead+padBytes) <= MaxTransferSize )
+                    if ((bytesToRead+padBytes) <= MaxTransferSize)
                     {
-                        if ( padBytes > 0 )
+                        if (padBytes > 0)
                         {
                             usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
                                 "Consuming %d pad bytes with last %d "
@@ -1696,7 +1607,7 @@ usbtmc_request_thread(void *param)
                         "Read %d bytes, Requested %d bytes, "
                         "padBytes=%d - LINE %d\n",
                         readStatus, bytesToRead, padBytes, __LINE__);
-                    if ( readStatus < (int)bytesToRead )
+                    if (readStatus < (int)bytesToRead)
                     {
                         usbtmc488_tsprintf(
                             "usbtmc488: %s: read error reading payload - "
@@ -1710,7 +1621,7 @@ usbtmc_request_thread(void *param)
                         goto halt_bulkout;
                     }
                     transferBytesRead += bytesToRead;
-                    if ( transferBytesRead >= transferSize )
+                    if (transferBytesRead >= transferSize)
                     {
                         msg->bmTransfer = bTransferAttribute;
                     }
@@ -1720,7 +1631,7 @@ usbtmc_request_thread(void *param)
                     }
                     process_dev_dep_msg_in((struct usbtmc_bulk_in_msg *) pRequestBuffer);
                 }
-                if ( readStatus >= (int)(transferSize+hdrSize+padBytes) )
+                if (readStatus >= (int)(transferSize+hdrSize+padBytes))
                 {
                     usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
                         "Consumed %d PAD bytes at LINE %d\n",
@@ -1728,7 +1639,7 @@ usbtmc_request_thread(void *param)
                     padBytes = 0;
                 }
             }
-            if ( padBytes > 0 )
+            if (padBytes > 0)
             {
                 /* We must request at least 4 bytes from the kernel. We shouldn't ever
                  * get here because the pad bytes should have been delivered with the
@@ -1747,7 +1658,7 @@ usbtmc_request_thread(void *param)
                 usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
                     "Read %d bytes, Requested %d PAD bytes - LINE %d\n",
                     readStatus, padBytes, __LINE__);
-                if ( readStatus < (int)padBytes )
+                if (readStatus < (int)padBytes)
                 {
                     usbtmc488_tsprintf(
                         "usbtmc488: %s: read error reading %d pad bytes - "
@@ -1763,96 +1674,102 @@ usbtmc_request_thread(void *param)
             }
         }
 
-        switch ( msg->sHdr.bMsgID )
+        switch (msg->sHdr.bMsgID)
         {
-            case DEV_DEP_MSG_OUT:
-                usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
-                    "%s: DEV_DEP_MSG_OUT handled\n", __FUNCTION__);
+        case USBTMC_DEV_DEP_MSG_OUT:
+            usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
+                "%s: USBTMC_DEV_DEP_MSG_OUT handled\n", __FUNCTION__);
+            break;
+
+        case USBTMC_REQ_DEV_DEP_MSG_IN:
+            usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
+                "%s: USBTMC_REQ_DEV_DEP_MSG_IN: transferSize=%d\n",
+                __FUNCTION__, transferSize);
+            switch (bulkin_inprogress)
+            {
+            case BULKIN_IDLE:
+                process_dev_dep_msg_in(
+                    (struct usbtmc_bulk_in_msg *) pRequestBuffer);
                 break;
-            case REQUEST_DEV_DEP_MSG_IN:
-                usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
-                    "%s: REQUEST_DEV_DEP_MSG_IN: transferSize=%d\n",
-                    __FUNCTION__, transferSize);
-                switch ( bulkin_inprogress )
+
+            case BULKIN_HALT:
+                UNLOCK(REQUEST_LOCK);
+                break;
+
+            case BULKIN_INPROGRESS:
+                if (responseState == TERMINATE)
                 {
-                    case BULKIN_IDLE:
-                        process_dev_dep_msg_in(
-                            (struct usbtmc_bulk_in_msg *) pRequestBuffer);
-                        break;
-                    case BULKIN_HALT:
-                        UNLOCK(REQUEST_LOCK);
-                        break;
-                    case BULKIN_INPROGRESS:
-                        if ( TERMINATE == responseState )
-                        {
-                            WAITFOR(BULKIN_LOCK);
-                            bulkin_inprogress = BULKIN_IDLE;
-                            bulkin_state = BULK_EP_IDLE;
-                            UNLOCK(BULKIN_LOCK);
-                        }
-                        else if ( IN_PROGRESS == responseState )
-                        {
-                            /* Host is reading response incrementally */
-                            usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
-                                "%s: bulkin_inprogress=%d, responseState=%d\n",
-                                __FUNCTION__, bulkin_inprogress, responseState);
-                            process_dev_dep_msg_in(
-                                (struct usbtmc_bulk_in_msg *) pRequestBuffer);
-                            break;
-                        }
-                        else if ( IDLE == responseState )
-                        {
-                            /* Response must have been flushed */
-                            usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
-                                "%s: bulkin_inprogress=%d, responseState=%d\n",
-                                __FUNCTION__, bulkin_inprogress, responseState);
-                            process_dev_dep_msg_in(
-                                (struct usbtmc_bulk_in_msg *) pRequestBuffer);
-                            break;
-                        }
-                        else
-                        {
-                            usbtmc488_tsprintf("%s: HALT BULKIN; responseState = %d\n",
-                                __FUNCTION__, responseState);
-                            goto halt_bulkin;
-                        }
-                        break;
-                    default:
-                        usbtmc488_tsprintf("%s: Unexpected bulkin_inprogress = %d\n",
-                            __FUNCTION__, bulkin_inprogress);
-                        goto halt_bulkin;
-                        break;
+                    WAITFOR(BULKIN_LOCK);
+                    bulkin_inprogress = BULKIN_IDLE;
+                    bulkin_state = BULK_EP_IDLE;
+                    UNLOCK(BULKIN_LOCK);
+                }
+                else if (responseState == IN_PROGRESS)
+                {
+                    /* Host is reading response incrementally */
+                    usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
+                        "%s: bulkin_inprogress=%d, responseState=%d\n",
+                        __FUNCTION__, bulkin_inprogress, responseState);
+                    process_dev_dep_msg_in(
+                        (struct usbtmc_bulk_in_msg *) pRequestBuffer);
+                    break;
+                }
+                else if (responseState == IDLE)
+                {
+                    /* Response must have been flushed */
+                    usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
+                        "%s: bulkin_inprogress=%d, responseState=%d\n",
+                        __FUNCTION__, bulkin_inprogress, responseState);
+                    process_dev_dep_msg_in(
+                        (struct usbtmc_bulk_in_msg *) pRequestBuffer);
+                    break;
+                }
+                else
+                {
+                    usbtmc488_tsprintf("%s: HALT BULKIN; responseState = %d\n",
+                        __FUNCTION__, responseState);
+                    goto halt_bulkin;
                 }
                 break;
-            case VENDOR_SPECIFIC_OUT:
-                usbtmc488_tsprintf("usbtmc488: %s: Unsupported MsgID: "
-                    "VENDOR_SPECIFIC_OUT\n", __FUNCTION__);
-                goto halt_bulkout;
-                break;
-            case REQUEST_VENDOR_SPECIFIC_IN:
-                usbtmc488_tsprintf("usbtmc488: %s: Unsupported MsgID: "
-                    "REQUEST_VENDOR_SPECIFIC_IN\n", __FUNCTION__);
-                goto halt_bulkout;
-                break;
-            case USB488_TRIGGER:
-                usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
-                    "%s: USB488_TRIGGER: %d\n",
-                    __FUNCTION__, transferSize);
-                eventMsg.type   = USBTMC488_MSG_DEVICE_TRIGGER;
-                eventMsg.value = 0;
-                eventMsg.msg_buffer = NULL;
-                usbtmc_event_handler(&eventMsg, m_pData);
-                break;
             default:
-                usbtmc488_tsprintf("usbtmc488: %s: Unsupported MsgID = %d\n",
-                    __FUNCTION__, msg->sHdr.bMsgID);
-                goto halt_bulkout;
+                usbtmc488_tsprintf("%s: Unexpected bulkin_inprogress = %d\n",
+                    __FUNCTION__, bulkin_inprogress);
+                goto halt_bulkin;
                 break;
+            }
+            break;
+
+        case USBTMC_VENDOR_SPECIFIC_OUT:
+            usbtmc488_tsprintf("usbtmc488: %s: Unsupported MsgID: "
+                "USBTMC_VENDOR_SPECIFIC_OUT\n", __FUNCTION__);
+            goto halt_bulkout;
+            break;
+
+        case USBTMC_REQ_VENDOR_SPECIFIC_IN:
+            usbtmc488_tsprintf("usbtmc488: %s: Unsupported MsgID: "
+                "USBTMC_REQ_VENDOR_SPECIFIC_IN\n", __FUNCTION__);
+            goto halt_bulkout;
+            break;
+
+        case USBTMC_TRIGGER:
+            usbtmcDbgPrint(USBTMC488_EP_BULKOUT,
+                "%s: USBTMC_TRIGGER\n", __FUNCTION__);
+            eventMsg.type   = USBTMC488_MSG_DEVICE_TRIGGER;
+            eventMsg.value = 0;
+            eventMsg.msg_buffer = NULL;
+                usbtmc_event_handler(&eventMsg, m_pData);
+            break;
+
+        default:
+            usbtmc488_tsprintf("usbtmc488: %s: Unsupported MsgID = %d\n",
+                __FUNCTION__, msg->sHdr.bMsgID);
+            goto halt_bulkout;
+            break;
         }
 
         bulkout_state = BULK_EP_IDLE;
 
-        if ( (readStatus < 0) && (localErrno != ESHUTDOWN) )
+        if ((readStatus < 0) && (localErrno != ESHUTDOWN))
         {
             usbtmc488_tsprintf(
                 "usbtmc488: %s: abnormal termination - localErrno=%d (%s)\n",
@@ -1863,6 +1780,7 @@ usbtmc_request_thread(void *param)
             break;
         }
         continue;
+
     halt_bulkin:
         usbtmc488_tsprintf("%s: HALT BULKIN\n", __FUNCTION__);
         /* halt/stall the Bulk-In Endpoint */
@@ -1870,6 +1788,7 @@ usbtmc_request_thread(void *param)
         bulkin_state = BULK_EP_HALT;
         UNLOCK(REQUEST_LOCK);
         continue;
+
     halt_bulkout:
         /* halt/stall the Bulk-Out Endpoint */
         /* Host must send a CLEAR_FEATURE to clear this condition */
@@ -1877,7 +1796,7 @@ usbtmc_request_thread(void *param)
         bulkout_state = BULK_EP_HALT;
         UNLOCK(REQUEST_LOCK);
         continue;
-    } while ( ! bThreadDone );
+    } while (!bThreadDone);
 
     fflush(stdout);
     pthread_cleanup_pop(1);
@@ -1886,8 +1805,8 @@ usbtmc_request_thread(void *param)
     return(0);
 }
 
-PRIVATE void *(*bulkout_thread) (void *);
-PRIVATE void *(*intrpt_thread) (void *);
+PRIVATE void *(*bulkout_thread)(void *);
+PRIVATE void *(*intrpt_thread)(void *);
 
 
 PRIVATE int
@@ -1909,13 +1828,13 @@ start_io()
 
     bulkin_state = bulkout_state = BULK_EP_IDLE;
 
-    if ( device_connected )
+    if (device_connected)
     {
         usbtmc488_tsprintf("usbtmc488: %s: IO already started\n",
             __FUNCTION__);
         return(0);
     }
-    if ( FALSE == usbtmc_interface_enabled )
+    if (!usbtmc_interface_enabled)
     {
         usbtmc488_tsprintf("usbtmc488: %s: interface not enabled\n",
             __FUNCTION__);
@@ -1982,42 +1901,38 @@ start_io()
     usbtmcDbgPrint(USBTMC488_SYSTEM,
         "%s: create bulkout thread\n", __FUNCTION__);
     status = pthread_attr_init(&attr);
-    if ( 0 != status )
+    if (status != 0)
     {
         usbtmc488_tsprintf("%s: pthread_attr_init failed: error=%d (%s)\n",
             __FUNCTION__, status, strerror(status));
         return(-1);
     }
     status = pthread_attr_setstacksize(&attr, USBTMC488_STACK_SIZE);
-    if ( 0 != status )
+    if (status != 0)
     {
         usbtmc488_tsprintf("%s: pthread_attr_setstacksize failed: error=%d (%s)\n",
             __FUNCTION__, status, strerror(status));
         return(-1);
     }
 
-    if ( pthread_create(&bulkout_tid, &attr,
-            bulkout_thread, (void *) EP_OUT_NAME) != 0 )
+    if (pthread_create(&bulkout_tid, &attr, bulkout_thread, EP_OUT_NAME) != 0)
     {
         perror("usbtmc488: can't create bulkout thread - error info");
     }
-
     pthread_setname_np(bulkout_tid, "USBTMCblkout");
 
     /* device_connected is used by the intrpt_thread to determine when to
      * exit.
      */
     device_connected = TRUE;
-    if ( pthread_create(&intr_tid, &attr,
-            intrpt_thread, (void *) NULL) != 0 )
+    if (pthread_create(&intr_tid, &attr, intrpt_thread, NULL) != 0)
     {
         perror("usbtmc488: can't create intrpt thread - error info");
     }
-
     pthread_setname_np(intr_tid, "USBTMCintr");
 
     status = pthread_attr_destroy(&attr);
-    if ( 0 != status )
+    if (status != 0)
     {
         usbtmc488_tsprintf("%s: pthread_attr_destroy failed: error=%d (%s)\n",
             __FUNCTION__, status, strerror(status));
@@ -2039,30 +1954,30 @@ stop_io()
     UNLOCK(DEVICE_CLEAR_LOCK);
     WAITFOR(DEVICE_CLEAR_LOCK);
 
-    if ( 0 <= bulkin_fd )
+    if (bulkin_fd > 0)
     {
         close_fd(&bulkin_fd);
     }
     device_connected = FALSE;
     SIGNAL_EVENT(INTRPT_EVENT);
     /* Allow time for the interrupt thread to exit. */
-    usbtmc488_sleep(100);
+    usbtmc488_usleep(100);
     WAITFOR(RESPONSE_LOCK);
     responseState = IDLE;
     bulkin_inprogress = BULKIN_IDLE;
     bulkin_state = bulkout_state = BULK_EP_IDLE;
     UNLOCK(RESPONSE_LOCK);
 
-    if ( (pthread_t)-1 != bulkout_tid )
+    if ((int) bulkout_tid != -1)
     {
         status = pthread_cancel(bulkout_tid);
-        if ( (0 != status) && (status != ESRCH) )
+        if ((status != 0) && (status != ESRCH))
         {
             usbtmc488_tsprintf("%s: error %d (%s) cancelling bulkout thread\n",
                     __FUNCTION__, status, strerror(status));
         }
         status = pthread_join(bulkout_tid, NULL);
-        if ( 0 != status )
+        if (status != 0)
         {
             usbtmc488_tsprintf("%s: error returned from pthread_join(bulkout_tid): %d (%s)\n",
                     __FUNCTION__, status, strerror(status));
@@ -2080,12 +1995,11 @@ PRIVATE int
 init_device(void)
 {
     int             localErrno = 0;
-    char            buf [4096], *cp = &buf [0];
     int             status;
 
     status = autoconfig();
 
-    if ( status < 0 )
+    if (status < 0)
     {
         usbtmc488_tsprintf(
                 "usbtmc488: %s: No recognized device found\n", __FUNCTION__);
@@ -2095,7 +2009,7 @@ init_device(void)
     ep0_fd = open(EP0_NAME, O_RDWR);
     localErrno = errno;
 
-    if ( ep0_fd < 0 )
+    if (ep0_fd < 0)
     {
         usbtmc488_tsprintf("usbtmc488: %s: Unable to open %s\n"
                 "  localErrno=%d (%s)\n",
@@ -2110,39 +2024,35 @@ init_device(void)
             "    File Descr: %d\n",
             __FUNCTION__, EP0_NAME, ep0_fd);
 
-    status = TEMP_FAILURE_RETRY(write(ep0_fd, &descriptors, sizeof descriptors));
-    fsync(ep0_fd);
-
-    if ( status < 0 )
+    status = TEMP_FAILURE_RETRY(write(ep0_fd, &usb_descriptors, sizeof(usb_descriptors)));
+    if (status < 0)
     {
         perror("usbtmc488: write dev descriptors - error info");
         close(ep0_fd);
         ep0_fd = -ENODEV;
         return(status);
     }
-    else if ( status != sizeof descriptors )
+    else if (status != sizeof(usb_descriptors))
     {
         usbtmc488_tsprintf("usbtmc488: %s: dev init, wrote %d expected %d\n",
-                __FUNCTION__, status, cp - buf);
+                __FUNCTION__, status, sizeof(usb_descriptors));
         close(ep0_fd);
         ep0_fd = -ENODEV;
         return(-EIO);
     }
 
-    status = TEMP_FAILURE_RETRY(write(ep0_fd, strings, strings->header.length));
-    fsync(ep0_fd);
-
-    if ( status < 0 )
+    status = TEMP_FAILURE_RETRY(write(ep0_fd, usb_strings, usb_strings->header.length));
+    if (status < 0)
     {
         perror("usbtmc488: write dev strings - error info");
         close(ep0_fd);
         ep0_fd = -ENODEV;
         return(status);
     }
-    else if ( status != (int) strings->header.length )
+    else if (status != (int) usb_strings->header.length)
     {
         usbtmc488_tsprintf("usbtmc488: %s: dev init, wrote %d expected %d\n",
-                __FUNCTION__, status, cp - buf);
+                __FUNCTION__, status, usb_strings->header.length);
         close(ep0_fd);
         ep0_fd = -ENODEV;
         return(-EIO);
@@ -2154,7 +2064,7 @@ init_device(void)
 PRIVATE int
 handle_tmc_control(int fd, struct usb_ctrlrequest *setup)
 {
-//sjz printf("handle_tmc_control fd %d\n", fd);
+//sjz printf("handle_tmc_control fd %d\n", fd);  // sjz
     int                        sem_status          = 0,
                                sem_errno           = 0;
     int                        localErrno          = 0;
@@ -2190,546 +2100,539 @@ handle_tmc_control(int fd, struct usb_ctrlrequest *setup)
         setup->bRequestType & ~(USB_DIR_IN|USB_TYPE_MASK),
         setup->bRequest, value, index, length);
 
-    switch ( setup->bRequest )
+    switch (setup->bRequest)
     {
-        case USBTMC_REQ_GET_CAPABILITIES:
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: GET_CAPABILITIES\n", __FUNCTION__);
-            buf = &usbtmc_get_cap_resp;
-            resp_length = sizeof(usbtmc_get_cap_resp);
-            break;
+    case USBTMC_REQ_GET_CAPABILITIES:
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: GET_CAPABILITIES\n", __FUNCTION__);
+        buf = &usbtmc_get_cap_resp;
+        resp_length = sizeof(usbtmc_get_cap_resp);
+        break;
 
-        case USBTMC_REQ_INITIATE_ABORT_BULK_OUT:
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: INITIATE_ABORT_BULK_OUT\n", __FUNCTION__);
+    case USBTMC_REQ_INITIATE_ABORT_BULK_OUT:
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: INITIATE_ABORT_BULK_OUT\n", __FUNCTION__);
 
-            /* Abort Bulk-OUT transfer, halt Bulk-out endpoint if a
-             * a transfer is inprogress and respond with:
-             *
-             * STATUS_SUCCESS if the specified transfer is in progress.
-             *      halt endpoint.
-             *
-             * STATUS_TRANSFER_NOT_IN_PROGRESS if there is no transfer
-             *      inprogress and the "FIFO"(input) is not empty, or
-             *      the bTag does not match.  halt endpoint.
-             *
-             * STATUS_FAILED if there is no transfer in progress and "FIFO"
-             *      is empty.  do not halt endpoint.
-             */
+        /* Abort Bulk-OUT transfer, halt Bulk-out endpoint if a
+         * a transfer is inprogress and respond with:
+         *
+         * USBTMC_STATUS_SUCCESS if the specified transfer is in progress.
+         *      halt endpoint.
+         *
+         * USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS if there is no transfer
+         *      inprogress and the "FIFO"(input) is not empty, or
+         *      the bTag does not match.  halt endpoint.
+         *
+         * USBTMC_STATUS_FAILED if there is no transfer in progress and "FIFO"
+         *      is empty.  do not halt endpoint.
+         */
 #if (FUNCTIONFS_FIFO_STATUS_IMPLEMENTED)
-            WAITFOR(BULKOUT_LOCK);
-            fifo_status = ioctl(bulkout_fd, FUNCTIONFS_FIFO_STATUS);
-            localErrno = errno;
-            UNLOCK(BULKOUT_LOCK);
-            if ( (fifo_status < 0) && (localErrno != EOPNOTSUPP) && (localErrno != ESHUTDOWN) )
-            {
-                usbtmc488_tsprintf("%s: FIFO_STATUS ioctl failure: fifo_status=%d\n"
-                           "  localErrno=%d (%s)\n",
-                    __FUNCTION__, fifo_status, localErrno, strerror(localErrno));
-                fifo_status = 0;
-            }
+        WAITFOR(BULKOUT_LOCK);
+        fifo_status = ioctl(bulkout_fd, FUNCTIONFS_FIFO_STATUS);
+        localErrno = errno;
+        UNLOCK(BULKOUT_LOCK);
+        if ((fifo_status < 0) && (localErrno != EOPNOTSUPP) && (localErrno != ESHUTDOWN))
+        {
+            usbtmc488_tsprintf("%s: FIFO_STATUS ioctl failure: fifo_status=%d\n"
+                       "  localErrno=%d (%s)\n",
+                __FUNCTION__, fifo_status, localErrno, strerror(localErrno));
+            fifo_status = 0;
+        }
 #endif /* FUNCTIONFS_FIFO_STATUS_IMPLEMENTED */
-            switch ( bulkout_state )
+        switch (bulkout_state)
+        {
+        case BULK_EP_INPROGRESS:
+            if (bTag_last_bulkout == bTag_setup)
             {
-            case BULK_EP_INPROGRESS:
-                    if ( bTag_last_bulkout == bTag_setup )
-                    {
-                        usbtmc_short_resp.bStatus = STATUS_SUCCESS;
-                        /* Build and send a device clear message to the
-                         * application and wait for the application to
-                         * complete the device clear processing.
-                         */
-                        controlMsg.type = USBTMC488_MSG_DEVICE_CLEAR;
-                        controlMsg.value = 0;
-                        controlMsg.msg_buffer   = NULL;
+                usbtmc_short_resp.bStatus = USBTMC_STATUS_SUCCESS;
+                /* Build and send a device clear message to the
+                 * application and wait for the application to
+                 * complete the device clear processing.
+                 */
+                controlMsg.type = USBTMC488_MSG_DEVICE_CLEAR;
+                controlMsg.value = 0;
+                controlMsg.msg_buffer   = NULL;
                         usbtmc_event_handler(&controlMsg, m_pData);
 
-                        /* Wait for the application to indicate that it's
-                         * done with device clear processing. If the application fails
-                         * to respond within DEVICE_CLEAR_DONE_TIMEOUT, continue as if
-                         * it had responded.
-                         */
-                        timed_wait_status = timed_wait(DEVICE_CLEAR_LOCK,
-                                           DEVICE_CLEAR_DONE_TIMEOUT);
-                        if ( (0 != timed_wait_status) && (ETIMEDOUT == errno) )
-                        {
-                            usbtmc488_tsprintf("%s: Timeout (%d msec) waiting for "
-                                "DEVICE_CLEAR_LOCK\n",
-                                __FUNCTION__, DEVICE_CLEAR_DONE_TIMEOUT);
-                            UNLOCK(DEVICE_CLEAR_LOCK);
-                        }
+                /* Wait for the application to indicate that it's
+                 * done with device clear processing. If the application fails
+                 * to respond within DEVICE_CLEAR_DONE_TIMEOUT, continue as if
+                 * it had responded.
+                 */
+                timed_wait_status = timed_wait(DEVICE_CLEAR_LOCK,
+                                   DEVICE_CLEAR_DONE_TIMEOUT);
+                if ((timed_wait_status != 0) && (errno == ETIMEDOUT))
+                {
+                    usbtmc488_tsprintf("%s: Timeout (%d msec) waiting for "
+                        "DEVICE_CLEAR_LOCK\n",
+                        __FUNCTION__, DEVICE_CLEAR_DONE_TIMEOUT);
+                    UNLOCK(DEVICE_CLEAR_LOCK);
+                }
 
 #if (FUNCTIONFS_FIFO_FLUSH_IMPLEMENTED)
-                        if ( 0 < fifo_status )
-                        {
-                            fifo_status =
-                                ioctl(fd, FUNCTIONFS_FIFO_FLUSH);
-                            if ( (fifo_status < 0) &&
-                                (errno != EOPNOTSUPP) )
-                            {
-                                perror("usbtmc488: fifo flush ioctl error info");
-                            }
-                        }
+                if (fifo_status >= 0)
+                {
+                    fifo_status =
+                        ioctl(fd, FUNCTIONFS_FIFO_FLUSH);
+                    if ((fifo_status < 0) &&
+                        (errno != EOPNOTSUPP))
+                    {
+                        perror("usbtmc488: fifo flush ioctl error info");
+                    }
+                }
 #endif /* FUNCTIONFS_FIFO_FLUSH_IMPLEMENTED */
-                    }
-                    else
-                    {
-                        usbtmc_short_resp.bStatus =
-                            STATUS_TRANSFER_NOT_IN_PROGRESS;
-                    }
-                    break;
-                case BULK_EP_IDLE:
-                    usbtmc_short_resp.bStatus = STATUS_SUCCESS;
-                    break;
-                case BULK_EP_HALT:
-                case BULK_EP_ERROR:
-                    if ( fifo_status > 0 )
-                    {
-                        usbtmc_short_resp.bStatus =
-                            STATUS_TRANSFER_NOT_IN_PROGRESS;
-                    }
-                    else
-                    {
-                        usbtmc_short_resp.bStatus = STATUS_FAILED;
-                    }
-                    break;
-                default:
-                    usbtmc_short_resp.bStatus = STATUS_FAILED;
-                    break;
-            }
-            usbtmc_short_resp.bData = bTag_last_bulkout;
-            buf = &usbtmc_short_resp;
-            resp_length = sizeof(usbtmc_short_resp);
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: INITIATE_ABORT_BULK_OUT:\n"
-                "  bulkout_state = %d\n"
-                "  bStatus       = %d\n"
-                "  bData         = %d\n",
-                __FUNCTION__, bulkout_state, usbtmc_short_resp.bStatus, usbtmc_short_resp.bData);
-            break;
-
-        case USBTMC_REQ_CHECK_ABORT_BULK_OUT_STATUS:
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: CHECK_ABORT_BULK_OUT_STATUS\n", __FUNCTION__);
-            /* Check the status of the Bulk-Out endpoint after an ABORT,
-             * respond with:
-             *
-             * STATUS_PENDING if the ABORT is not complete NBYTES_RXD
-             *      not calculated (return zero?)
-             *
-             * STATUS_SUCCESS ABORT complete, NBYTES_RXD set to, the total
-             *      number of USBTMC message data bytes (not including
-             *      Bulk-OUT header or alignement bytes) in the transfer
-             *      received, and not discarded, by the device.
-             */
-            usbtmc_check_abort_resp.bStatus = STATUS_SUCCESS;
-            usbtmc_check_abort_resp.lNbytesXD = __cpu_to_le32(0);
-            buf = &usbtmc_check_abort_resp;
-            resp_length = sizeof(usbtmc_check_abort_resp);
-            break;
-
-        case USBTMC_REQ_INITIATE_ABORT_BULK_IN:
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: INITIATE_ABORT_BULK_IN\n", __FUNCTION__);
-
-            /* Abort a Bulk-In transfer and/or resync USBTMC Bulk-In
-             * transfers. Respond with:
-             *
-             * STATUS_SUCCESS if the specified transfer is in progress
-             *      after the response is queued queue a short packet
-             *      on the Bulk-In endpoint.
-             *
-             * STATUS_TRANSFER_NOT_IN_PROGRESS if the transfer in progress
-             *      does not match, or there is no transfer in progress
-             *      but the Bulk-Out FIFO is not empty.
-             *
-             * STATUS_FAILED if there is not a transfer in progress and
-             *      the Bulk-Out FIFO is empty.
-             *
-             */
-            usbtmc_short_resp.bData = bTag_last_bulkin;
-
-#if (FUNCTIONFS_FIFO_STATUS_IMPLEMENTED)
-            WAITFOR(BULKOUT_LOCK);
-            fifo_status = ioctl(bulkout_fd, FUNCTIONFS_FIFO_STATUS);
-            localErrno = errno;
-            UNLOCK(BULKOUT_LOCK);
-            if ( (fifo_status < 0) && (errno != EOPNOTSUPP) )
-            {
-                usbtmc488_tsprintf("%s: FIFO_STATUS ioctl failure: fifo_status=%d\n"
-                           "  localErrno=%d (%s)\n",
-                    __FUNCTION__, fifo_status, localErrno, strerror(localErrno));
-                fifo_status = 0;
-            }
-#endif /* FUNCTIONFS_FIFO_STATUS_IMPLEMENTED */
-            WAITFOR(RESPONSE_LOCK);
-            responseState = TERMINATE;
-            SIGNAL_EVENT(TALKADDR_OR_TERMINATE);
-            UNLOCK(RESPONSE_LOCK);
-            switch ( bulkin_state )
-            {
-                case BULK_EP_INPROGRESS:
-                case BULK_EP_IDLE:
-                    if ( (BULK_EP_INPROGRESS == bulkin_state) &&
-                         (bTag_last_bulkin == bTag_setup)
-                       )
-                    {
-                        usbtmc_short_resp.bStatus = STATUS_SUCCESS;
-                        /* Build and send a device clear message to the
-                         * application and wait for the application to
-                         * complete the device clear processing.
-                         */
-                        controlMsg.type = USBTMC488_MSG_DEVICE_CLEAR;
-                        controlMsg.value = 0;
-                        controlMsg.msg_buffer   = NULL;
-                        usbtmc_event_handler(&controlMsg, m_pData);
-
-                        /* Wait for the application to indicate that it's
-                         * done with device clear processing. If the application fails
-                         * to respond within DEVICE_CLEAR_DONE_TIMEOUT, continue as if
-                         * it had responded.
-                         */
-                        timed_wait_status = timed_wait(DEVICE_CLEAR_LOCK,
-                                           DEVICE_CLEAR_DONE_TIMEOUT);
-                        if ( (0 != timed_wait_status) && (ETIMEDOUT == errno) )
-                        {
-                            usbtmc488_tsprintf("%s: Timeout (%d msec) waiting for "
-                                "DEVICE_CLEAR_LOCK\n",
-                                __FUNCTION__, DEVICE_CLEAR_DONE_TIMEOUT);
-                            UNLOCK(DEVICE_CLEAR_LOCK);
-                        }
-
-                    }
-                    else if ( BULK_EP_INPROGRESS == bulkin_state )
-                    {
-                        usbtmc_short_resp.bStatus =
-                            STATUS_TRANSFER_NOT_IN_PROGRESS;
-                    }
-                    else
-                    {
-                        usbtmc_short_resp.bStatus = STATUS_FAILED;
-                    }
-
-                    /* Send the control endpoint response first */
-                    status = TEMP_FAILURE_RETRY(
-                        write(fd, &usbtmc_short_resp, sizeof(usbtmc_short_resp)));
-                    fsync(fd);
-
-                    localErrno = errno;
-                    if ( status != sizeof(usbtmc_short_resp) )
-                    {
-                        usbtmc488_tsprintf(
-                            "usbtmc488: %s: Error writing control endpoint "
-                            "response for abort bulkin\n"
-                            "localErrno=%d (%s) (%d != %d)\n",
-                            __FUNCTION__, localErrno, strerror(localErrno), status, sizeof(usbtmc_short_resp));
-                    }
-
-                    /* If the control endpoint response was STATUS_SUCCESS, send a short
-                     * packet on bulkin  to terminate the transfer, per table 26 of the
-                     * USBTMC specification version 1.0.
-                     */
-                    if ( STATUS_SUCCESS == usbtmc_short_resp.bStatus )
-                    {
-                        /* Send a short packet on the bulkin endpoint
-                         * to terminate any transfer which may have been in progress.
-                         */
-                        memset(&short_bulkin_packet, 0, sizeof(short_bulkin_packet));
-                        WAITFOR(RESPONSE_LOCK);
-                        short_bulkin_packet.sHdr.bTag = last_req_dev_dep_msgin_msg.sHdr.bTag;
-                        short_bulkin_packet.sHdr.bTagInv = last_req_dev_dep_msgin_msg.sHdr.bTagInv;
-                        UNLOCK(RESPONSE_LOCK);
-                        short_bulkin_packet.sHdr.bMsgID = DEV_DEP_MSG_IN;
-
-                        WAITFOR(BULKIN_LOCK);
-                        status = BULK_FAILURE_RETRY(
-                             write(bulkin_fd,
-                                   &short_bulkin_packet,
-                                   sizeof(short_bulkin_packet)));
-                        fsync(bulkin_fd);
-
-                        localErrno = errno;
-                        UNLOCK(BULKIN_LOCK);
-                        if ( status != sizeof(short_bulkin_packet) )
-                        {
-                            usbtmc488_tsprintf(
-                            "%s: error writing bulkin short packet: "
-                            "write returned %d\n"
-                            "  localErrno=%d (%s)\n",
-                            __FUNCTION__,
-                            status,
-                            localErrno,
-                            strerror(localErrno));
-                        }
-                    }
-                    break;
-                case BULK_EP_HALT:
-                case BULK_EP_ERROR:
-                    buf = &usbtmc_short_resp;
-                    resp_length = sizeof(usbtmc_short_resp);
-
-                    if ( fifo_status > 0 )
-                    {
-                        usbtmc_short_resp.bStatus =
-                            STATUS_TRANSFER_NOT_IN_PROGRESS;
-                    }
-                    else
-                    {
-                        usbtmc_short_resp.bStatus = STATUS_FAILED;
-                    }
-                    break;
-                default:
-                    buf = &usbtmc_short_resp;
-                    resp_length = sizeof(usbtmc_short_resp);
-                    usbtmc_short_resp.bData = 0;
-                    usbtmc_short_resp.bStatus = STATUS_FAILED;
-                    break;
-            }
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: INITIATE_ABORT_BULK_IN:\n"
-                "  bulkin_state = %d\n"
-                "  bStatus      = %d\n"
-                "  bData        = %d\n",
-                __FUNCTION__, bulkin_state, usbtmc_short_resp.bStatus, usbtmc_short_resp.bData);
-            break;
-
-        case USBTMC_REQ_CHECK_ABORT_BULK_IN_STATUS:
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: CHECK_ABORT_BULK_IN_STATUS\n", __FUNCTION__);
-            /* Check progress of Abort Bulk-In operation, respond with:
-             *
-             * STATUS_PENDING if the short packet has not been sent
-             *      if there are 1 or more queued packets set
-             *      bmAbortBulkIn.D0 = 1.  Set NBYTES_TXD to zero.
-             *
-             * STATUS_SUCCESS if the short packet has been sent, the
-             *      Bulk-In FIFO is empty and we are ready to receive
-             *      commands.
-             *
-             */
-            usbtmc_check_abort_resp.bStatus = STATUS_SUCCESS;
-            usbtmc_check_abort_resp.lNbytesXD = __cpu_to_le32(0);
-            usbtmc_check_abort_resp.bmAbortBulkIn = 0;
-            buf = &usbtmc_check_abort_resp;
-            resp_length = sizeof(usbtmc_check_abort_resp);
-            break;
-
-        case USBTMC_REQ_INITIATE_CLEAR:
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: INITIATE_CLEAR\n", __FUNCTION__);
-            usbtmc_short_resp.bStatus = STATUS_SUCCESS;
-            usbtmc_short_resp.bData = 0;
-            buf = &usbtmc_short_resp;
-            resp_length = sizeof(usbtmc_short_resp.bStatus);
-
-            /* Build and send a device clear message to the application
-             * and wait for the application to complete the device clear
-             * processing.
-             */
-            controlMsg.type = USBTMC488_MSG_DEVICE_CLEAR;
-            controlMsg.value = 0;
-            controlMsg.msg_buffer   = NULL;
-            usbtmc_event_handler(&controlMsg, m_pData);
-
-            /* Wait for the application to indicate that it's
-             * done with device clear processing. If the application fails
-             * to respond within DEVICE_CLEAR_DONE_TIMEOUT, continue as if
-             * it had responded.
-             */
-            timed_wait_status = timed_wait(DEVICE_CLEAR_LOCK,
-                               DEVICE_CLEAR_DONE_TIMEOUT);
-            if ( (0 != timed_wait_status) && (ETIMEDOUT == errno) )
-            {
-                usbtmc488_tsprintf("%s: Timeout (%d msec) waiting for "
-                    "DEVICE_CLEAR_LOCK\n",
-                    __FUNCTION__, DEVICE_CLEAR_DONE_TIMEOUT);
-                UNLOCK(DEVICE_CLEAR_LOCK);
-            }
-
-            WAITFOR(RESPONSE_LOCK);
-            responseState = TERMINATE;
-            bulkin_inprogress = BULKIN_IDLE;
-            bulkin_state = BULK_EP_IDLE;
-            SIGNAL_EVENT(TALKADDR_OR_TERMINATE);
-            UNLOCK(RESPONSE_LOCK);
-            break;
-
-        case USBTMC_REQ_CHECK_CLEAR_STATUS:
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: CHECK_CLEAR_STATUS\n", __FUNCTION__);
-            usbtmc_short_resp.bStatus = STATUS_SUCCESS;
-            usbtmc_short_resp.bData = 0;
-            buf = &usbtmc_short_resp;
-            resp_length = sizeof(usbtmc_short_resp);
-            break;
-
-        case USBTMC_REQ_INDICATOR_PULSE:
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: INDICATOR_PULSE\n", __FUNCTION__);
-            usbtmc_short_resp.bStatus = STATUS_FAILED;
-            usbtmc_short_resp.bData = 0;
-            buf = &usbtmc_short_resp;
-            resp_length = sizeof(usbtmc_short_resp.bStatus);
-            break;
-
-        case USB488_REQ_READ_STATUS_BYTE:
-            /* This request gets 2 responses:
-             *    One on the interrupt-in endpoint
-             *    One on the control endpoint
-             *
-             * Here's the relevent protocol requirement from the USB488 sub-class spec:
-             *
-             * When a device receives READ_STATUS_BYTE, and the USB488 interface has an
-             * Interrupt-IN endpoint, the device must queue the control endpoint response
-             * shown below in Table 13. In addition, the device must return a response on the
-             * Interrupt-IN endpoint. The format of the response on the Interrupt-IN endpoint
-             * is shown in Table 7. The device must queue the Interrupt-IN endpoint response
-             * and then queue this control endpoint response. If the Interrupt-IN endpoint
-             * response can not be queued because the Interrupt-IN FIFO is full, the device
-             * must set the control endpoint response USBTMC_status = STATUS_INTERRUPT_IN_BUSY.
-             *
-             * Because some hosts are erroneously expecting the control endpoint response
-             * to be sent before the interrupt-in response, we are purposely violating the
-             * sequencing requirement above.
-             */
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: READ_STATUS_BYTE\n", __FUNCTION__);
-            /* Allow any bulkin transfers to complete because the kernel driver (dwc_otg)
-             * shares a FIFO for bulkin and interrupt-in - sheesh!
-             */
-            WAITFOR(BULKIN_LOCK);
-            WAITFOR(STATUS_BYTE_LOCK);
-            WAITFOR(INTRPT_LOCK);
-            usbtmc_interrupt_in_resp.bNotify2 = usbtmc_status_byte;
-            usbtmc_read_sb_resp.bTag = bTag_setup; /* bTag of request */
-
-            usbtmc_read_sb_resp.bStatusByte = 0; /* Device has an interrupt-in endpoint and
-                                  * device status is reported there.
-                                 */
-            usbtmc_interrupt_in_resp.bNotify1 = bTag_setup;
-            usbtmc_interrupt_in_resp.bNotify1 |= 0x80;
-            usbtmc_read_sb_resp.bStatus = STATUS_SUCCESS;
-            status = TEMP_FAILURE_RETRY(
-                write(fd, &usbtmc_read_sb_resp, sizeof(struct usbtmc_read_sb_resp)));
-            fsync(fd);
-
-            localErrno = errno;
-            if ( status != sizeof(struct usbtmc_read_sb_resp) )
-            {
-                usbtmc488_tsprintf(
-                    "usbtmc488: %s: Error writing READ_STATUS_BYTE control endpoint "
-                    "response\n"
-                    "localErrno=%d (%s)\n",
-                    __FUNCTION__, localErrno, strerror(localErrno));
-                UNLOCK(INTRPT_LOCK);
-                UNLOCK(STATUS_BYTE_LOCK);
-                UNLOCK(BULKIN_LOCK);
-                return(-1);
-            }
-            /* Signal the interrupt thread to write the interrupt-in response */
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: signal 1 INTRPT_EVENT\n", __FUNCTION__);
-            SIGNAL_EVENT(INTRPT_EVENT);
-            /* Wait for the interrupt thread to write the response or a timeout. If
-             * the host does not send IN tokens on interrupt-in, then the INTRPT_DONE_EVENT
-             * will remain locked and the interrupt thread will be stuck in it's
-             * write to the interrupt-in file descriptor.
-             */
-            timed_wait_status = timed_wait(INTRPT_DONE_EVENT, INTRPT_TIMEOUT);
-            if ( (0 != timed_wait_status) && (ETIMEDOUT == errno) )
-            {
-                usbtmc488_tsprintf("%s: READ_STATUS_BYTE Timeout (%d msec) waiting for "
-                    "INTRPT_DONE_EVENT\n",
-                    __FUNCTION__, INTRPT_TIMEOUT);
-            }
-            else if ( 0 != timed_wait_status )
-            {
-                usbtmc488_tsprintf("%s: Error %d (%s) waiting for INTRPT_DONE_EVENT\n",
-                    __FUNCTION__, timed_wait_status, strerror(timed_wait_status));
-            }
-            UNLOCK(INTRPT_LOCK);
-            UNLOCK(STATUS_BYTE_LOCK);
-            UNLOCK(BULKIN_LOCK);
-
-            /* Build and send a device clear message to the
-             * application */
-            controlMsg.type = USBTMC488_MSG_UPDATE_LOCAL_STATUS_BYTE;
-            controlMsg.value = 0;
-            controlMsg.msg_buffer   = NULL;
-            usbtmc_event_handler(&controlMsg, m_pData);
-
-            return(0);
-            break;
-
-        case USB488_REQ_REN_CONTROL:
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: REN_CONTROL value %d\n", __FUNCTION__, value);
-            usbtmc_short_resp.bStatus = STATUS_SUCCESS;
-            buf = &usbtmc_short_resp;
-            resp_length = sizeof(usbtmc_short_resp.bStatus);
-
-            /* Build and send a device clear message to the
-             * application */
-            if (bTag_setup == 0)
-            {
-                controlMsg.type = USBTMC488_MSG_REN_DISABLE;
             }
             else
             {
-                controlMsg.type = USBTMC488_MSG_REN_ENABLE;                
+                usbtmc_short_resp.bStatus =
+                    USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS;
             }
-            controlMsg.value = 0;
-            controlMsg.msg_buffer   = NULL;
-            usbtmc_event_handler(&controlMsg, m_pData);
-
             break;
 
-        case USB488_REQ_GO_TO_LOCAL:
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: GO_TO_LOCAL\n", __FUNCTION__);
-            usbtmc_short_resp.bStatus = STATUS_SUCCESS;
-            buf = &usbtmc_short_resp;
-            resp_length = sizeof(usbtmc_short_resp.bStatus);
-
-            /* Build and send a device clear message to the
-             * application */
-            controlMsg.type = USBTMC488_MSG_GOTO_LOCAL;
-            controlMsg.value = 0;
-            controlMsg.msg_buffer   = NULL;
-            usbtmc_event_handler(&controlMsg, m_pData);
-
+        case BULK_EP_IDLE:
+            usbtmc_short_resp.bStatus = USBTMC_STATUS_SUCCESS;
             break;
 
-        case USB488_REQ_LOCAL_LOCKOUT:
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: LOCAL_LOCKOUT\n", __FUNCTION__);
-            usbtmc_short_resp.bStatus = STATUS_SUCCESS;
-            buf = &usbtmc_short_resp;
-            resp_length = sizeof(usbtmc_short_resp.bStatus);
-
-            /* Build and send a device clear message to the
-             * application */
-            controlMsg.type = USBTMC488_MSG_GOTO_LOCAL_LOCKOUT;
-            controlMsg.value = 0;
-            controlMsg.msg_buffer   = NULL;
-            usbtmc_event_handler(&controlMsg, m_pData);
-
+        case BULK_EP_HALT:
+        case BULK_EP_ERROR:
+            if (fifo_status > 0)
+            {
+                usbtmc_short_resp.bStatus =
+                    USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS;
+            }
+            else
+            {
+                usbtmc_short_resp.bStatus = USBTMC_STATUS_FAILED;
+            }
             break;
 
         default:
-            usbtmc488_tsprintf("usbtmc488: %s: unhandled control\n"
-                    "  setup->bRequest=%d\n",
-                    __FUNCTION__, setup->bRequest);
-            return(-1);
+            usbtmc_short_resp.bStatus = USBTMC_STATUS_FAILED;
             break;
+        }
+        usbtmc_short_resp.bData = bTag_last_bulkout;
+        buf = &usbtmc_short_resp;
+        resp_length = sizeof(usbtmc_short_resp);
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: INITIATE_ABORT_BULK_OUT:\n"
+            "  bulkout_state = %d\n"
+            "  bStatus       = %d\n"
+            "  bData         = %d\n",
+            __FUNCTION__, bulkout_state, usbtmc_short_resp.bStatus, usbtmc_short_resp.bData);
+        break;
+
+    case USBTMC_REQ_CHECK_ABORT_BULK_OUT_STATUS:
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: CHECK_ABORT_BULK_OUT_STATUS\n", __FUNCTION__);
+        /* Check the status of the Bulk-Out endpoint after an ABORT,
+         * respond with:
+         *
+         * USBTMC_STATUS_PENDING if the ABORT is not complete NBYTES_RXD
+         *      not calculated (return zero?)
+         *
+         * USBTMC_STATUS_SUCCESS ABORT complete, NBYTES_RXD set to, the total
+         *      number of USBTMC message data bytes (not including
+         *      Bulk-OUT header or alignement bytes) in the transfer
+         *      received, and not discarded, by the device.
+         */
+        usbtmc_check_abort_resp.bStatus = USBTMC_STATUS_SUCCESS;
+        usbtmc_check_abort_resp.lNbytesXD = __cpu_to_le32(0);
+        buf = &usbtmc_check_abort_resp;
+        resp_length = sizeof(usbtmc_check_abort_resp);
+        break;
+
+    case USBTMC_REQ_INITIATE_ABORT_BULK_IN:
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: INITIATE_ABORT_BULK_IN\n", __FUNCTION__);
+
+        /* Abort a Bulk-In transfer and/or resync USBTMC Bulk-In
+         * transfers. Respond with:
+         *
+         * USBTMC_STATUS_SUCCESS if the specified transfer is in progress
+         *      after the response is queued queue a short packet
+         *      on the Bulk-In endpoint.
+         *
+         * USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS if the transfer in progress
+         *      does not match, or there is no transfer in progress
+         *      but the Bulk-Out FIFO is not empty.
+         *
+         * USBTMC_STATUS_FAILED if there is not a transfer in progress and
+         *      the Bulk-Out FIFO is empty.
+         *
+         */
+        usbtmc_short_resp.bData = bTag_last_bulkin;
+
+#if (FUNCTIONFS_FIFO_STATUS_IMPLEMENTED)
+        WAITFOR(BULKOUT_LOCK);
+        fifo_status = ioctl(bulkout_fd, FUNCTIONFS_FIFO_STATUS);
+        localErrno = errno;
+        UNLOCK(BULKOUT_LOCK);
+        if ((fifo_status < 0) && (errno != EOPNOTSUPP))
+        {
+            usbtmc488_tsprintf("%s: FIFO_STATUS ioctl failure: fifo_status=%d\n"
+                       "  localErrno=%d (%s)\n",
+                __FUNCTION__, fifo_status, localErrno, strerror(localErrno));
+            fifo_status = 0;
+        }
+#endif /* FUNCTIONFS_FIFO_STATUS_IMPLEMENTED */
+        WAITFOR(RESPONSE_LOCK);
+        responseState = TERMINATE;
+        SIGNAL_EVENT(TALKADDR_OR_TERMINATE);
+        UNLOCK(RESPONSE_LOCK);
+        switch (bulkin_state)
+        {
+        case BULK_EP_INPROGRESS:
+        case BULK_EP_IDLE:
+            if ((bulkin_state == BULK_EP_INPROGRESS) &&
+                (bTag_last_bulkin == bTag_setup))
+            {
+                usbtmc_short_resp.bStatus = USBTMC_STATUS_SUCCESS;
+                /* Build and send a device clear message to the
+                 * application and wait for the application to
+                 * complete the device clear processing.
+                 */
+                controlMsg.type = USBTMC488_MSG_DEVICE_CLEAR;
+                controlMsg.value = 0;
+                controlMsg.msg_buffer   = NULL;
+                        usbtmc_event_handler(&controlMsg, m_pData);
+
+                /* Wait for the application to indicate that it's
+                 * done with device clear processing. If the application fails
+                 * to respond within DEVICE_CLEAR_DONE_TIMEOUT, continue as if
+                 * it had responded.
+                 */
+                timed_wait_status = timed_wait(DEVICE_CLEAR_LOCK,
+                                   DEVICE_CLEAR_DONE_TIMEOUT);
+                if ((timed_wait_status != 0) && (errno == ETIMEDOUT))
+                {
+                    usbtmc488_tsprintf("%s: Timeout (%d msec) waiting for "
+                        "DEVICE_CLEAR_LOCK\n",
+                        __FUNCTION__, DEVICE_CLEAR_DONE_TIMEOUT);
+                    UNLOCK(DEVICE_CLEAR_LOCK);
+                }
+
+            }
+            else if (bulkin_state == BULK_EP_INPROGRESS)
+            {
+                usbtmc_short_resp.bStatus =
+                    USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS;
+            }
+            else
+            {
+                usbtmc_short_resp.bStatus = USBTMC_STATUS_FAILED;
+            }
+
+            /* Send the control endpoint response first */
+            status = TEMP_FAILURE_RETRY(
+                write(fd, &usbtmc_short_resp, sizeof(usbtmc_short_resp)));
+            localErrno = errno;
+            if (status != sizeof(usbtmc_short_resp))
+            {
+                usbtmc488_tsprintf(
+                    "usbtmc488: %s: Error writing control endpoint "
+                    "response for abort bulkin\n"
+                    "localErrno=%d (%s) (%d != %d)\n",
+                    __FUNCTION__, localErrno, strerror(localErrno), status, sizeof(usbtmc_short_resp));
+            }
+
+            /* If the control endpoint response was USBTMC_STATUS_SUCCESS, send a short
+             * packet on bulkin  to terminate the transfer, per table 26 of the
+             * USBTMC specification version 1.0.
+             */
+            if (usbtmc_short_resp.bStatus == USBTMC_STATUS_SUCCESS)
+            {
+                /* Send a short packet on the bulkin endpoint
+                 * to terminate any transfer which may have been in progress.
+                 */
+                memset(&short_bulkin_packet, 0, sizeof(short_bulkin_packet));
+                WAITFOR(RESPONSE_LOCK);
+                short_bulkin_packet.sHdr.bTag = last_req_dev_dep_msgin_msg.sHdr.bTag;
+                short_bulkin_packet.sHdr.bTagInv = last_req_dev_dep_msgin_msg.sHdr.bTagInv;
+                UNLOCK(RESPONSE_LOCK);
+                short_bulkin_packet.sHdr.bMsgID = USBTMC_DEV_DEP_MSG_IN;
+
+                WAITFOR(BULKIN_LOCK);
+                status = BULK_FAILURE_RETRY(
+                     write(bulkin_fd,
+                           &short_bulkin_packet,
+                           sizeof(short_bulkin_packet)));
+                localErrno = errno;
+                UNLOCK(BULKIN_LOCK);
+                if (status != sizeof(short_bulkin_packet))
+                {
+                    usbtmc488_tsprintf(
+                    "%s: error writing bulkin short packet: "
+                    "write returned %d\n"
+                    "  localErrno=%d (%s)\n",
+                    __FUNCTION__,
+                    status,
+                    localErrno,
+                    strerror(localErrno));
+                }
+            }
+            break;
+
+        case BULK_EP_HALT:
+        case BULK_EP_ERROR:
+            buf = &usbtmc_short_resp;
+            resp_length = sizeof(usbtmc_short_resp);
+
+            if (fifo_status > 0)
+            {
+                usbtmc_short_resp.bStatus =
+                    USBTMC_STATUS_TRANSFER_NOT_IN_PROGRESS;
+            }
+            else
+            {
+                usbtmc_short_resp.bStatus = USBTMC_STATUS_FAILED;
+            }
+            break;
+
+        default:
+            buf = &usbtmc_short_resp;
+            resp_length = sizeof(usbtmc_short_resp);
+            usbtmc_short_resp.bData = 0;
+            usbtmc_short_resp.bStatus = USBTMC_STATUS_FAILED;
+            break;
+        }
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: INITIATE_ABORT_BULK_IN:\n"
+            "  bulkin_state = %d\n"
+            "  bStatus      = %d\n"
+            "  bData        = %d\n",
+            __FUNCTION__, bulkin_state, usbtmc_short_resp.bStatus, usbtmc_short_resp.bData);
+        break;
+
+    case USBTMC_REQ_CHECK_ABORT_BULK_IN_STATUS:
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: CHECK_ABORT_BULK_IN_STATUS\n", __FUNCTION__);
+        /* Check progress of Abort Bulk-In operation, respond with:
+         *
+         * USBTMC_STATUS_PENDING if the short packet has not been sent
+         *      if there are 1 or more queued packets set
+         *      bmAbortBulkIn.D0 = 1.  Set NBYTES_TXD to zero.
+         *
+         * USBTMC_STATUS_SUCCESS if the short packet has been sent, the
+         *      Bulk-In FIFO is empty and we are ready to receive
+         *      commands.
+         *
+         */
+        usbtmc_check_abort_resp.bStatus = USBTMC_STATUS_SUCCESS;
+        usbtmc_check_abort_resp.lNbytesXD = __cpu_to_le32(0);
+        usbtmc_check_abort_resp.bmAbortBulkIn = 0;
+        buf = &usbtmc_check_abort_resp;
+        resp_length = sizeof(usbtmc_check_abort_resp);
+        break;
+
+    case USBTMC_REQ_INITIATE_CLEAR:
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: INITIATE_CLEAR\n", __FUNCTION__);
+        usbtmc_short_resp.bStatus = USBTMC_STATUS_SUCCESS;
+        usbtmc_short_resp.bData = 0;
+        buf = &usbtmc_short_resp;
+        resp_length = sizeof(usbtmc_short_resp.bStatus);
+
+        /* Build and send a device clear message to the application
+         * and wait for the application to complete the device clear
+         * processing.
+         */
+        controlMsg.type = USBTMC488_MSG_DEVICE_CLEAR;
+        controlMsg.value = 0;
+        controlMsg.msg_buffer   = NULL;
+            usbtmc_event_handler(&controlMsg, m_pData);
+
+        /* Wait for the application to indicate that it's
+         * done with device clear processing. If the application fails
+         * to respond within DEVICE_CLEAR_DONE_TIMEOUT, continue as if
+         * it had responded.
+         */
+        timed_wait_status = timed_wait(DEVICE_CLEAR_LOCK,
+                           DEVICE_CLEAR_DONE_TIMEOUT);
+        if ((timed_wait_status != 0) && (errno == ETIMEDOUT))
+        {
+            usbtmc488_tsprintf("%s: Timeout (%d msec) waiting for "
+                "DEVICE_CLEAR_LOCK\n",
+                __FUNCTION__, DEVICE_CLEAR_DONE_TIMEOUT);
+            UNLOCK(DEVICE_CLEAR_LOCK);
+        }
+
+        WAITFOR(RESPONSE_LOCK);
+        responseState = TERMINATE;
+        bulkin_inprogress = BULKIN_IDLE;
+        bulkin_state = BULK_EP_IDLE;
+        SIGNAL_EVENT(TALKADDR_OR_TERMINATE);
+        UNLOCK(RESPONSE_LOCK);
+        break;
+
+    case USBTMC_REQ_CHECK_CLEAR_STATUS:
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: CHECK_CLEAR_STATUS\n", __FUNCTION__);
+        usbtmc_short_resp.bStatus = USBTMC_STATUS_SUCCESS;
+        usbtmc_short_resp.bData = 0;
+        buf = &usbtmc_short_resp;
+        resp_length = sizeof(usbtmc_short_resp);
+        break;
+
+    case USBTMC_REQ_INDICATOR_PULSE:
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: INDICATOR_PULSE\n", __FUNCTION__);
+        usbtmc_short_resp.bStatus = USBTMC_STATUS_FAILED;
+        usbtmc_short_resp.bData = 0;
+        buf = &usbtmc_short_resp;
+        resp_length = sizeof(usbtmc_short_resp.bStatus);
+        break;
+
+    case USB488_REQ_READ_STATUS_BYTE:
+        /* This request gets 2 responses:
+         *    One on the interrupt-in endpoint
+         *    One on the control endpoint
+         *
+         * Here's the relevent protocol requirement from the USB488 sub-class spec:
+         *
+         * When a device receives READ_STATUS_BYTE, and the USB488 interface has an
+         * Interrupt-IN endpoint, the device must queue the control endpoint response
+         * shown below in Table 13. In addition, the device must return a response on the
+         * Interrupt-IN endpoint. The format of the response on the Interrupt-IN endpoint
+         * is shown in Table 7. The device must queue the Interrupt-IN endpoint response
+         * and then queue this control endpoint response. If the Interrupt-IN endpoint
+         * response can not be queued because the Interrupt-IN FIFO is full, the device
+         * must set the control endpoint response USBTMC_status = USBTMC_STATUS_INTERRUPT_IN_BUSY.
+         *
+         * Because some hosts are erroneously expecting the control endpoint response
+         * to be sent before the interrupt-in response, we are purposely violating the
+         * sequencing requirement above.
+         */
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: READ_STATUS_BYTE (0x%02X)\n", __FUNCTION__, usbtmc_status_byte);
+
+        /* Allow any bulkin transfers to complete because the kernel driver (dwc_otg)
+         * shares a FIFO for bulkin and interrupt-in - sheesh!
+         */
+        WAITFOR(BULKIN_LOCK);
+        WAITFOR(STATUS_BYTE_LOCK);
+        WAITFOR(INTRPT_LOCK);
+        usbtmc_interrupt_in_resp.bNotify2 = usbtmc_status_byte;
+        usbtmc_read_sb_resp.bTag = bTag_setup; /* bTag of request */
+
+        /* Device has an interrupt-in endpoint and
+         * device status is reported there.
+         */
+        usbtmc_read_sb_resp.bStatusByte = 0;
+        usbtmc_interrupt_in_resp.bNotify1 = bTag_setup;
+        usbtmc_interrupt_in_resp.bNotify1 |= 0x80;
+        usbtmc_read_sb_resp.bStatus = USBTMC_STATUS_SUCCESS;
+        status = TEMP_FAILURE_RETRY(
+            write(fd, &usbtmc_read_sb_resp, sizeof(struct usbtmc_read_sb_resp)));
+        localErrno = errno;
+        if (status != sizeof(struct usbtmc_read_sb_resp))
+        {
+            usbtmc488_tsprintf(
+                "usbtmc488: %s: Error writing READ_STATUS_BYTE control endpoint "
+                "response\n"
+                "localErrno=%d (%s)\n",
+                __FUNCTION__, localErrno, strerror(localErrno));
+            UNLOCK(INTRPT_LOCK);
+            UNLOCK(STATUS_BYTE_LOCK);
+            UNLOCK(BULKIN_LOCK);
+            return(-1);
+        }
+        /* Signal the interrupt thread to write the interrupt-in response */
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: signal 1 INTRPT_EVENT\n", __FUNCTION__);
+        SIGNAL_EVENT(INTRPT_EVENT);
+        /* Wait for the interrupt thread to write the response or a timeout. If
+         * the host does not send IN tokens on interrupt-in, then the INTRPT_DONE_EVENT
+         * will remain locked and the interrupt thread will be stuck in it's
+         * write to the interrupt-in file descriptor.
+         */
+        timed_wait_status = timed_wait(INTRPT_DONE_EVENT, INTRPT_TIMEOUT);
+        if ((timed_wait_status != 0) && (errno == ETIMEDOUT))
+        {
+            usbtmc488_tsprintf("%s: READ_STATUS_BYTE Timeout (%d msec) waiting for "
+                "INTRPT_DONE_EVENT\n",
+                __FUNCTION__, INTRPT_TIMEOUT);
+        }
+        else if (timed_wait_status != 0)
+        {
+            usbtmc488_tsprintf("%s: Error %d (%s) waiting for INTRPT_DONE_EVENT\n",
+                __FUNCTION__, timed_wait_status, strerror(timed_wait_status));
+        }
+        UNLOCK(INTRPT_LOCK);
+        UNLOCK(STATUS_BYTE_LOCK);
+        UNLOCK(BULKIN_LOCK);
+
+        /* Build and send a update status byte message to the
+         * application */
+        controlMsg.type = USBTMC488_MSG_UPDATE_LOCAL_STATUS_BYTE;
+        controlMsg.value = 0;
+        controlMsg.msg_buffer   = NULL;
+            usbtmc_event_handler(&controlMsg, m_pData);
+
+        return(0);
+        break;
+
+    case USB488_REQ_REN_CONTROL:
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: REN_CONTROL value %d\n", __FUNCTION__, value);
+        usbtmc_short_resp.bStatus = USBTMC_STATUS_SUCCESS;
+        buf = &usbtmc_short_resp;
+        resp_length = sizeof(usbtmc_short_resp.bStatus);
+
+        /* Build and send a REN ENABLE/DISABLE message to the
+         * application */
+        controlMsg.type = (value == 0)
+            ? USBTMC488_MSG_REN_DISABLE
+            : USBTMC488_MSG_REN_ENABLE;
+        controlMsg.value = 0;
+        controlMsg.msg_buffer   = NULL;
+            usbtmc_event_handler(&controlMsg, m_pData);
+
+        break;
+
+    case USB488_REQ_GO_TO_LOCAL:
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: GO_TO_LOCAL\n", __FUNCTION__);
+        usbtmc_short_resp.bStatus = USBTMC_STATUS_SUCCESS;
+        buf = &usbtmc_short_resp;
+        resp_length = sizeof(usbtmc_short_resp.bStatus);
+
+        /* Build and send a GOTO_LOCAL message to the
+         * application */
+        controlMsg.type = USBTMC488_MSG_GOTO_LOCAL;
+        controlMsg.value = 0;
+        controlMsg.msg_buffer   = NULL;
+            usbtmc_event_handler(&controlMsg, m_pData);
+
+        break;
+
+    case USB488_REQ_LOCAL_LOCKOUT:
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: LOCAL_LOCKOUT\n", __FUNCTION__);
+        usbtmc_short_resp.bStatus = USBTMC_STATUS_SUCCESS;
+        buf = &usbtmc_short_resp;
+        resp_length = sizeof(usbtmc_short_resp.bStatus);
+
+        /* Build and send a LOCAL_LOCKOUT message to the
+         * application */
+        controlMsg.type = USBTMC488_MSG_GOTO_LOCAL_LOCKOUT;
+        controlMsg.value = 0;
+        controlMsg.msg_buffer   = NULL;
+            usbtmc_event_handler(&controlMsg, m_pData);
+
+        break;
+
+    default:
+        usbtmc488_tsprintf("usbtmc488: %s: unhandled control\n"
+                "  setup->bRequest=%d\n",
+                __FUNCTION__, setup->bRequest);
+        return(-1);
+        break;
     }
-    if ( resp_length )
+    if (resp_length != 0)
     {
         status = TEMP_FAILURE_RETRY(write(fd, buf, resp_length));
-        fsync(fd);
-
         localErrno = errno;
-        if ( status != resp_length )
+        if (status != resp_length)
         {
             usbtmc488_tsprintf("usbtmc488: %s: Error writing control endpoint response\n"
                 "localErrno=%d (%s)\n", __FUNCTION__, localErrno, strerror(localErrno));
@@ -2750,13 +2653,14 @@ PRIVATE void
 handle_control(int fd, struct usb_ctrlrequest *setup)
 {
 
-//sjz printf("handle_control fd %d\n", fd);
+//sjz printf("handle_control fd %d\n", fd); //sjz
     int             sem_status = 0,
                     sem_errno  = 0;
     int             localErrno = 0;
     int             status = 0;
-    __u8            buf [256];
+    __u8            buf[256];
     __u16           value, index, length;
+    int             tmp;
 
     value = __le16_to_cpu(setup->wValue);
     index = __le16_to_cpu(setup->wIndex);
@@ -2771,9 +2675,9 @@ handle_control(int fd, struct usb_ctrlrequest *setup)
         setup->bRequestType & ~(USB_DIR_IN|USB_TYPE_MASK),
         setup->bRequest, value, index, length);
 
-    if ( (setup->bRequestType & USB_TYPE_MASK) != USB_TYPE_STANDARD )
+    if ((setup->bRequestType & USB_TYPE_MASK) != USB_TYPE_STANDARD)
     {
-        if ( handle_tmc_control(fd, setup) == 0 )
+        if (handle_tmc_control(fd, setup) == 0)
         {
             return;
         }
@@ -2799,421 +2703,383 @@ handle_control(int fd, struct usb_ctrlrequest *setup)
         the gadget and then passed to this layer for further processing
         which is TDB.
     */
-    switch ( setup->bRequest )      /* usb 2.0 spec ch9 requests */
+    switch (setup->bRequest) /* usb 2.0 spec ch9 requests */
     {
-        case USB_REQ_GET_STATUS:
+    case USB_REQ_GET_STATUS:
+        usbtmc488_tsprintf("%s: USB_REQ_GET_STATUS should be handled by the kernel "
+                "driver!!! requestType %02x\n",
+                __FUNCTION__, setup->bRequestType);
+        return;
+
+    case USB_REQ_CLEAR_FEATURE:
+        index &= ~USB_DIR_IN;
+        if ((setup->bRequestType != USB_RECIP_ENDPOINT)
+             || ((index <= 0) || (index > 3))
+             || (length != 0)
+             || (USB_ENDPOINT_HALT != value))
         {
-            usbtmc488_tsprintf("%s: USB_REQ_GET_STATUS should be handled by the kernel "
-                    "driver!!! requestType %02x\n",
-                    __FUNCTION__, setup->bRequestType);
-            return;
+            usbtmc488_tsprintf("%s: Unexpected USB_REQ_CLEAR_FEATURE packet:\n"
+                "  bRequestType=0x%02x, index=0x%02x, length=0x%02x, value=0x%02x\n"
+                "  setup->wValue=0x%02x, wIndex=0x%02x, wLength=0x%02x\n",
+                __FUNCTION__,
+                setup->bRequestType,
+                index,
+                length,
+                value,
+                setup->wValue,
+                setup->wIndex,
+                setup->wLength);
+            goto stall;
+        }
+
+        errno = localErrno = status = 0;
+        switch (index)
+        {
+        case BULKIN_ENDPOINT_ADDRESS:
+            /* bulk_in */
+            WAITFOR(BULKIN_LOCK);
+/* If the kernel layer handles the data toggle reset,
+* then don't ask it to do it again here.
+*/
+#ifdef NOKERNEL_CLEAR_HALT
+            if (ioctl(bulkin_fd, FUNCTIONFS_CLEAR_HALT) < 0)
+            {
+                localErrno = errno;
+                usbtmc488_tsprintf("%s: CLEAR_HALT error on bulkin: "
+                    "localErrno=%d, error info: %s\n",
+                    __FUNCTION__,
+                    localErrno,
+                    strerror(localErrno));
+                status = localErrno;
+            }
+#endif /* NOKERNEL_CLEAR_HALT */
+            bulkin_state = BULK_EP_IDLE;
+            UNLOCK(BULKIN_LOCK);
+            break;
+
+        case BULKOUT_ENDPOINT_ADDRESS:
+            /* bulk_out */
+            /* Can't wait for BULKOUT_LOCK here because it
+             * may already be locked by the usbtmc_request_thread
+             * or handle_tmc_control and we'd end up with a deadlock.
+             */
+/* If the kernel layer handles the data toggle reset,
+* then don't ask it to do it again here.
+*/
+#ifdef NOKERNEL_CLEAR_HALT
+            if (ioctl(bulkout_fd, FUNCTIONFS_CLEAR_HALT) < 0)
+            {
+                localErrno = errno;
+                usbtmc488_tsprintf("%s: CLEAR_HALT error on bulkout: "
+                    "localErrno=%d, error info: %s\n",
+                    __FUNCTION__,
+                    localErrno,
+                    strerror(localErrno));
+                status = localErrno;
+            }
+#endif /* NOKERNEL_CLEAR_HALT */
+            bulkout_state = BULK_EP_IDLE;
+            break;
+
+        case INTRPTIN_ENDPOINT_ADDRESS:
+/* If the kernel layer handles the data toggle reset,
+* then don't ask it to do it again here.
+*/
+#ifdef NOKERNEL_CLEAR_HALT
+            WAITFOR(INTRPT_LOCK);
+            usbtmcDbgPrint(USBTMC488_EP_INTRPT,
+                "%s: ioctl FUNCTIONFS_CLEAR_HALT\n", __FUNCTION__);
+            if (ioctl(intr_fd, FUNCTIONFS_CLEAR_HALT) < 0)
+            {
+                localErrno = errno;
+                usbtmc488_tsprintf("%s: CLEAR_HALT error on interrupt_in: "
+                    "localErrno=%d, error info: %s\n",
+                    __FUNCTION__,
+                    localErrno,
+                    strerror(localErrno));
+                status = localErrno;
+            }
+            usbtmcDbgPrint(USBTMC488_EP_INTRPT,
+                "%s: ioctl FUNCTIONFS_CLEAR_HALT DONE\n", __FUNCTION__);
+            UNLOCK(INTRPT_LOCK);
+#endif /* NOKERNEL_CLEAR_HALT */
+            break;
+
+        default:
+            usbtmc488_tsprintf("%s: Unexpected endpoint %d for CLEAR_HALT\n",
+                __FUNCTION__,
+                index);
+            status = -1;
             break;
         }
-
-        case USB_REQ_CLEAR_FEATURE:
+        if (status != 0)
         {
-            index &= ~USB_DIR_IN;
-            if ( (setup->bRequestType != USB_RECIP_ENDPOINT)
-                 || ((index<=0) || (index>3))
-                 || (length != 0)
-                 || (USB_ENDPOINT_HALT != value) )
-            {
-                usbtmc488_tsprintf("%s: Unexpected USB_REQ_CLEAR_FEATURE packet:\n"
-                    "  bRequestType=0x%02x, index=0x%02x, length=0x%02x, value=0x%02x\n"
-                    "  setup->wValue=0x%02x, wIndex=0x%02x, wLength=0x%02x\n",
-                    __FUNCTION__,
-                    setup->bRequestType,
-                    index,
-                    length,
-                    value,
-                    setup->wValue,
-                    setup->wIndex,
-                    setup->wLength);
-                goto stall;
-            }
-
-            errno = localErrno = status = 0;
-            switch (index)
-            {
-                case BULKIN_ENDPOINT_ADDRESS:
-                {
-                    /* bulk_in */
-                    WAITFOR(BULKIN_LOCK);
-/* If the kernel layer handles the data toggle reset,
- * then don't ask it to do it again here.
- */
-#ifdef NOKERNEL_CLEAR_HALT
-                    if ( ioctl(bulkin_fd, FUNCTIONFS_CLEAR_HALT) < 0 )
-                    {
-                        localErrno = errno;
-                        usbtmc488_tsprintf("%s: CLEAR_HALT error on bulkin: "
-                            "localErrno=%d, error info: %s\n",
-                            __FUNCTION__,
-                            localErrno,
-                            strerror(localErrno));
-                        status = localErrno;
-                    }
-#endif /* NOKERNEL_CLEAR_HALT */
-                    bulkin_state = BULK_EP_IDLE;
-                    UNLOCK(BULKIN_LOCK);
-                    break;
-                }
-                case BULKOUT_ENDPOINT_ADDRESS:
-                {
-                    /* bulk_out */
-                    /* Can't wait for BULKOUT_LOCK here because it
-                     * may already be locked by the usbtmc_request_thread
-                     * or handle_tmc_control and we'd end up with a deadlock.
-                     */
-/* If the kernel layer handles the data toggle reset,
- * then don't ask it to do it again here.
- */
-#ifdef NOKERNEL_CLEAR_HALT
-                    if ( ioctl(bulkout_fd, FUNCTIONFS_CLEAR_HALT) < 0 )
-                    {
-                        localErrno = errno;
-                        usbtmc488_tsprintf("%s: CLEAR_HALT error on bulkout: "
-                            "localErrno=%d, error info: %s\n",
-                            __FUNCTION__,
-                            localErrno,
-                            strerror(localErrno));
-                        status = localErrno;
-                    }
-#endif /* NOKERNEL_CLEAR_HALT */
-                    bulkout_state = BULK_EP_IDLE;
-                    break;
-                }
-                case INTRPTIN_ENDPOINT_ADDRESS:
-                {
-/* If the kernel layer handles the data toggle reset,
- * then don't ask it to do it again here.
- */
-#ifdef NOKERNEL_CLEAR_HALT
-                    WAITFOR(INTRPT_LOCK);
-                    usbtmcDbgPrint(USBTMC488_EP_INTRPT,
-                        "%s: ioctl FUNCTIONFS_CLEAR_HALT\n", __FUNCTION__);
-                    if ( ioctl(intr_fd, FUNCTIONFS_CLEAR_HALT) < 0 )
-                    {
-                        localErrno = errno;
-                        usbtmc488_tsprintf("%s: CLEAR_HALT error on interrupt_in: "
-                            "localErrno=%d, error info: %s\n",
-                            __FUNCTION__,
-                            localErrno,
-                            strerror(localErrno));
-                        status = localErrno;
-                    }
-                    usbtmcDbgPrint(USBTMC488_EP_INTRPT,
-                        "%s: ioctl FUNCTIONFS_CLEAR_HALT DONE\n", __FUNCTION__);
-                    UNLOCK(INTRPT_LOCK);
-#endif /* NOKERNEL_CLEAR_HALT */
-                    break;
-                }
-                default:
-                {
-                    usbtmc488_tsprintf("%s: Unexpected endpoint %d for CLEAR_HALT\n",
-                        __FUNCTION__,
-                        index);
-                    status = -1;
-                    break;
-                }
-            }
-            if ( 0 != status )
-            {
-                usbtmc488_tsprintf("%s: status=%d, error info: %s\n",
-                    __FUNCTION__, status, strerror(localErrno));
-                goto stall;
-            }
-            /* ... ack (a write would stall) */
-            status = TEMP_FAILURE_RETRY(read(fd, buf, 0));
-            if ( status )
-            {
-                usbtmc488_tsprintf("%s: ACK CLEAR_HALT ERROR: EP #%d: %s\n",
-                    __FUNCTION__, index, strerror(localErrno));
-            }
-            return;
+            usbtmc488_tsprintf("%s: status=%d, error info: %s\n",
+                __FUNCTION__, status, strerror(localErrno));
+            goto stall;
         }
-
-        case USB_REQ_SET_FEATURE:
+        /* ... ack (a write would stall) */
+        status = TEMP_FAILURE_RETRY(read(fd, buf, 0));
+        if (status)
         {
-            usbtmc488_tsprintf("%s: USB_REQ_SET_FEATURE should be handled by the kernel "
-                    "driver!!!\n",
-                    __FUNCTION__);
-            return;
+            usbtmc488_tsprintf("%s: ACK CLEAR_HALT ERROR: EP #%d: %s\n",
+                __FUNCTION__, index, strerror(localErrno));
         }
+        return;
 
-        case USB_REQ_SET_ADDRESS:
-        {
-            usbtmc488_tsprintf("%s: USB_REQ_SET_ADDRESS should be handled by the kernel "
-                    "driver!!!\n",
-                    __FUNCTION__);
-            return;
-        }
-
-        case USB_REQ_GET_DESCRIPTOR:
-        {
-            if ( setup->bRequestType != USB_DIR_IN )
-            {
-                usbtmc488_tsprintf("%s: USB_REQ_GET_DESCRIPTOR: bRequestType != USB_DIR_IN, bRequestType=0x%02x\n",
-                        __FUNCTION__, setup->bRequestType);
-                goto stall;
-            }
-            switch ( value >> 8 )
-            {
-                case USB_DT_STRING:
-                {
-                    int tmp;
-
-                    WAITFOR(STRINGTAB_LOCK);
-                    tmp = value & 0x0ff;
-                    usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                        "%s: ... get string %d lang %04x\n",
-                        __FUNCTION__, tmp, index);
-                    if ( tmp != 0 && index != strings->language )
-                    {
-                        UNLOCK(STRINGTAB_LOCK);
-                        usbtmc488_tsprintf("%s: USB_REQ_GET_DESCRIPTOR: invalid string table request\n"
-                                   "    value=0x%02x, index=0x%02x, strings.language=0x%02x\n"
-                                   "    setup->wValue=0x%02x, wIndex=0x%02x, wLength=0x%02x\n",
-                                   __FUNCTION__,
-                                   value,
-                                   index,
-                                   strings->language,
-                                   setup->wValue,
-                                   setup->wIndex,
-                                   setup->wLength);
-                        goto stall;
-                    }
-#ifdef _CJS_DEBUG
-                    // CJS
-                    //status = usb_gadget_get_string(&strings, tmp, buf);
-                    if ( status < 0 )
-                    {
-                        UNLOCK(STRINGTAB_LOCK);
-                        usbtmc488_tsprintf("%s: USB_REQ_GET_DESCRIPTOR: usb_gadget_get_string error:\n"
-                                   "    value=0x%02x, index=0x%02x, strings.language=0x%02x\n"
-                                   "    setup->wValue=0x%02x, wIndex=0x%02x, wLength=0x%02x\n",
-                                   __FUNCTION__,
-                                   value,
-                                   index,
-                                   strings->language,
-                                   setup->wValue,
-                                   setup->wIndex,
-                                   setup->wLength);
-                        goto stall;
-                    }
-#endif // _CJS_DEBUG
-                    UNLOCK(STRINGTAB_LOCK);
-                    tmp = status;
-                    if ( length < tmp )
-                        tmp = length;
-                    status = TEMP_FAILURE_RETRY(write(fd, buf, tmp));
-                    fsync(fd);
-
-                    if ( status < 0 )
-                    {
-                        localErrno = errno;
-                        if ( localErrno == EIDRM )
-                        {
-                            usbtmc488_tsprintf(
-                            "%s: USB_REQ_GET_DESCRIPTOR: USB_DT_STRING write timeout\n", __FUNCTION__);
-                        }
-                        else
-                        {
-                            usbtmc488_tsprintf("%s: write string data error: %s\n",
-                                __FUNCTION__, strerror(localErrno));
-                        }
-                    }
-                    else if ( status != tmp )
-                    {
-                        usbtmc488_tsprintf("%s: short string write, wrote %d of %d bytes\n",
-                            __FUNCTION__,
-                            status,
-                            tmp);
-                    }
-                    break;
-                }
-                default:
-                {
-                    usbtmc488_tsprintf("%s: USB_REQ_GET_DESCRIPTOR: unexpected value requested\n"
-                               "    value>>8=0x%02x\n",
-                            __FUNCTION__, value>>8);
-                    goto stall;
-                    break;
-                }
-            }
-            return;
-        }
-
-        case USB_REQ_SET_DESCRIPTOR:
-        {
-            usbtmc488_tsprintf("%s: USB_REQ_SET_DESCRIPTOR is not implemented",
-                    __FUNCTION__);
-            /* ... ack (a write would stall) */
-            status = TEMP_FAILURE_RETRY(read(fd, buf, 0));
-            localErrno = errno;
-            if ( status )
-            {
-                usbtmc488_tsprintf("%s: ACK USB_REQ_SET_DESCRIPTOR ERROR: %s\n",
-                    __FUNCTION__, strerror(localErrno));
-            }
-            return;
-        }
-
-        case USB_REQ_GET_CONFIGURATION:
-        {
-            usbtmc488_tsprintf("%s: UNHANDLED ch9 REQUEST USB_REQ_GET_CONFIGURATION\n",
+    case USB_REQ_SET_FEATURE:
+        usbtmc488_tsprintf("%s: USB_REQ_SET_FEATURE should be handled by the kernel "
+                "driver!!!\n",
                 __FUNCTION__);
-            return;
-        }
+        return;
 
-        case USB_REQ_SET_CONFIGURATION:
+    case USB_REQ_SET_ADDRESS:
+        usbtmc488_tsprintf("%s: USB_REQ_SET_ADDRESS should be handled by the kernel "
+                "driver!!!\n",
+                __FUNCTION__);
+        return;
+
+    case USB_REQ_GET_DESCRIPTOR:
+        if (setup->bRequestType != USB_DIR_IN)
         {
-            if ( setup->bRequestType != USB_DIR_OUT )
-            {
-                usbtmc488_tsprintf("%s: USB_REQ_SET_CONFIGURATION: invalid direction %d\n",
+            usbtmc488_tsprintf("%s: USB_REQ_GET_DESCRIPTOR: bRequestType != USB_DIR_IN, bRequestType=0x%02x\n",
                     __FUNCTION__, setup->bRequestType);
-                goto stall;
-            }
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: CONFIG #%d\n", __FUNCTION__, value);
-
-            /* Kernel is normally waiting for us to finish reconfiguring
-             * the device.
-             *
-             * Some hardware can't, notably older PXA2xx hardware.  (With
-             * racey and restrictive config change automagic.  PXA 255 is
-             * OK, most PXA 250s aren't.  If it has a UDC CFR register,
-             * it can handle deferred response for SET_CONFIG.)  To handle
-             * such hardware, don't write code this way ... instead, keep
-             * the endpoints always active and don't rely on seeing any
-             * config change events, either this or SET_INTERFACE.
-             */
-            switch ( value )
-            {
-                case CONFIG_VALUE:
-                    usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                        "%s: Starting I/O\n", __FUNCTION__);
-                    if ( 0 != start_io() )
-                    {
-                        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                            "%s: I/O failed to start\n", __FUNCTION__);
-                        return;
-                    }
-                    else
-                    {
-                        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                            "%s: I/O started\n", __FUNCTION__);
-                    }
-                    break;
-                case 0:
-                    usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                        "%s: Stopping I/O\n", __FUNCTION__);
-                    stop_io();
-                    break;
-                default:
-                    /* kernel bug -- "can't happen" */
-                    usbtmc488_tsprintf("usbtmc488: %s: Unexpected SET_CONFIGURATION "
-                               "value 0x%02x\n",
-                                __FUNCTION__, value);
-                    goto stall;
-                    break;
-            }
-
-            /* ... ack (a write would stall) */
-            status = TEMP_FAILURE_RETRY(read(fd, buf, 0));
-            localErrno = errno;
-            if ( status )
-            {
-                usbtmc488_tsprintf("%s: ACK USB_REQ_SET_CONFIGURATION ERROR: %s\n",
-                    __FUNCTION__, strerror(localErrno));
-            }
-            return;
+            goto stall;
         }
-
-        case USB_REQ_GET_INTERFACE:
+        switch (value >> 8)
         {
-            if ( setup->bRequestType != (USB_DIR_IN|USB_RECIP_INTERFACE)
-                 || index != 0
-                 || length > 1 )
+        case USB_DT_STRING:
+            WAITFOR(STRINGTAB_LOCK);
+            tmp = value & 0x0ff;
+            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+                "%s: ... get string %d lang %04x\n",
+                __FUNCTION__, tmp, index);
+            if ((tmp != 0) && (index != usb_strings->language))
             {
-                usbtmc488_tsprintf("%s: USB_REQ_GET_INTERFACE ERROR: %s\n"
-                           "    setup->bRequestType=%d, index=%d, length=%d\n",
-                    __FUNCTION__, setup->bRequestType, index, length);
+                UNLOCK(STRINGTAB_LOCK);
+                usbtmc488_tsprintf("%s: USB_REQ_GET_DESCRIPTOR: invalid string table request\n"
+                           "    value=0x%02x, index=0x%02x, strings.language=0x%02x\n"
+                           "    setup->wValue=0x%02x, wIndex=0x%02x, wLength=0x%02x\n",
+                           __FUNCTION__,
+                           value,
+                           index,
+                           usb_strings->language,
+                           setup->wValue,
+                           setup->wIndex,
+                           setup->wLength);
                 goto stall;
             }
-            /* only one altsetting in this driver */
-            buf [0] = 0;
-            status = TEMP_FAILURE_RETRY(write(fd, buf, length));
-            fsync(fd);
-
-            localErrno = errno;
-            if ( status < 0 )
+#ifdef _CJS_DEBUG
+            // CJS
+            //status = usb_gadget_get_string(&usb_strings, tmp, buf);
+            if (status < 0)
             {
-                if ( localErrno == EIDRM )
+                UNLOCK(STRINGTAB_LOCK);
+                usbtmc488_tsprintf("%s: USB_REQ_GET_DESCRIPTOR: usb_gadget_get_string error:\n"
+                           "    value=0x%02x, index=0x%02x, strings.language=0x%02x\n"
+                           "    setup->wValue=0x%02x, wIndex=0x%02x, wLength=0x%02x\n",
+                           __FUNCTION__,
+                           value,
+                           index,
+                           usb_strings->language,
+                           setup->wValue,
+                           setup->wIndex,
+                           setup->wLength);
+                goto stall;
+            }
+#endif // _CJS_DEBUG
+            UNLOCK(STRINGTAB_LOCK);
+            tmp = status;
+            if (length < tmp)
+                tmp = length;
+            status = TEMP_FAILURE_RETRY(write(fd, buf, tmp));
+            if (status < 0)
+            {
+                localErrno = errno;
+                if (localErrno == EIDRM)
                 {
                     usbtmc488_tsprintf(
-                        "usbtmc488: %s: GET_INTERFACE timeout\n",
-                        __FUNCTION__);
+                    "%s: USB_REQ_GET_DESCRIPTOR: USB_DT_STRING write timeout\n", __FUNCTION__);
                 }
                 else
                 {
-                    perror("usbtmc488: write GET_INTERFACE data - error info");
+                    usbtmc488_tsprintf("%s: write string data error: %s\n",
+                        __FUNCTION__, strerror(localErrno));
                 }
             }
-            else if ( status != length )
+            else if (status != tmp)
             {
-                usbtmc488_tsprintf("%s: short GET_INTERFACE write, %d\n", __FUNCTION__, status);
+                usbtmc488_tsprintf("%s: short string write, wrote %d of %d bytes\n",
+                    __FUNCTION__,
+                    status,
+                    tmp);
             }
-            return;
-        }
-
-        case USB_REQ_SET_INTERFACE:
-        {
-            if ( setup->bRequestType != USB_RECIP_INTERFACE
-                 || index != 0
-                 || value != 0
-               )
-            {
-                usbtmc488_tsprintf("%s: USB_REQ_SET_INTERFACE ERROR: %s\n"
-                           "    setup->bRequestType=%d, index=%d, length=%d\n",
-                    __FUNCTION__, setup->bRequestType, index, length);
-                goto stall;
-            }
-            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                "%s: INTERFACE #%d\n", __FUNCTION__, value);
-
-            /* ... and ack (a write would stall) */
-            status = TEMP_FAILURE_RETRY(read(fd, buf, 0));
-            localErrno = errno;
-            if ( status )
-            {
-                usbtmc488_tsprintf("%s: ACK USB_REQ_SET_INTERFACE ERROR: %s\n",
-                    __FUNCTION__, strerror(localErrno));
-            }
-            return;
-        }
-
-        case USB_REQ_SYNCH_FRAME:
-        {
-            usbtmc488_tsprintf("%s: UNHANDLED ch9 REQUEST USB_REQ_SYNCH_FRAME\n",
-                __FUNCTION__);
-            /* ... ack (a write would stall) */
-            status = TEMP_FAILURE_RETRY(read(fd, buf, 0));
-            localErrno = errno;
-            if ( status )
-            {
-                usbtmc488_tsprintf("%s: ACK USB_REQ_SYNCH_FRAME ERROR: %s\n",
-                    __FUNCTION__, strerror(localErrno));
-            }
-            return;
-        }
+            break;
 
         default:
-        {
-            usbtmc488_tsprintf("%s: UNHANDLED ch9 REQUEST %02x\n",
-                __FUNCTION__, setup->bRequest);
-            return;
+            usbtmc488_tsprintf("%s: USB_REQ_GET_DESCRIPTOR: unexpected value requested\n"
+                       "    value>>8=0x%02x\n",
+                    __FUNCTION__, value>>8);
+            goto stall;
+            break;
         }
+        return;
+
+    case USB_REQ_SET_DESCRIPTOR:
+        usbtmc488_tsprintf("%s: USB_REQ_SET_DESCRIPTOR is not implemented",
+                __FUNCTION__);
+        /* ... ack (a write would stall) */
+        status = TEMP_FAILURE_RETRY(read(fd, buf, 0));
+        localErrno = errno;
+        if (status)
+        {
+            usbtmc488_tsprintf("%s: ACK USB_REQ_SET_DESCRIPTOR ERROR: %s\n",
+                __FUNCTION__, strerror(localErrno));
+        }
+        return;
+
+    case USB_REQ_GET_CONFIGURATION:
+        usbtmc488_tsprintf("%s: UNHANDLED ch9 REQUEST USB_REQ_GET_CONFIGURATION\n",
+            __FUNCTION__);
+        return;
+
+    case USB_REQ_SET_CONFIGURATION:
+        if (setup->bRequestType != USB_DIR_OUT)
+        {
+            usbtmc488_tsprintf("%s: USB_REQ_SET_CONFIGURATION: invalid direction %d\n",
+                __FUNCTION__, setup->bRequestType);
+            goto stall;
+        }
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: CONFIG #%d\n", __FUNCTION__, value);
+
+        /* Kernel is normally waiting for us to finish reconfiguring
+         * the device.
+         *
+         * Some hardware can't, notably older PXA2xx hardware.  (With
+         * racey and restrictive config change automagic.  PXA 255 is
+         * OK, most PXA 250s aren't.  If it has a UDC CFR register,
+         * it can handle deferred response for SET_CONFIG.)  To handle
+         * such hardware, don't write code this way ... instead, keep
+         * the endpoints always active and don't rely on seeing any
+         * config change events, either this or SET_INTERFACE.
+         */
+        switch (value)
+        {
+        case CONFIG_VALUE:
+            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+                "%s: Starting I/O\n", __FUNCTION__);
+            if (start_io() != 0)
+            {
+                usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+                    "%s: I/O failed to start\n", __FUNCTION__);
+                return;
+            }
+            else
+            {
+                usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+                    "%s: I/O started\n", __FUNCTION__);
+            }
+            break;
+
+        case 0:
+            usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+                "%s: Stopping I/O\n", __FUNCTION__);
+            stop_io();
+            break;
+
+        default:
+            /* kernel bug -- "can't happen" */
+            usbtmc488_tsprintf("usbtmc488: %s: Unexpected SET_CONFIGURATION "
+                       "value 0x%02x\n",
+                        __FUNCTION__, value);
+            goto stall;
+            break;
+        }
+
+        /* ... ack (a write would stall) */
+        status = TEMP_FAILURE_RETRY(read(fd, buf, 0));
+        localErrno = errno;
+        if (status)
+        {
+            usbtmc488_tsprintf("%s: ACK USB_REQ_SET_CONFIGURATION ERROR: %s\n",
+                __FUNCTION__, strerror(localErrno));
+        }
+        return;
+
+    case USB_REQ_GET_INTERFACE:
+        if ((setup->bRequestType != (USB_DIR_IN | USB_RECIP_INTERFACE))
+            || (index != 0)
+            || (length > 1))
+        {
+            usbtmc488_tsprintf("%s: USB_REQ_GET_INTERFACE ERROR: %s\n"
+                       "    setup->bRequestType=%d, index=%d, length=%d\n",
+                __FUNCTION__, setup->bRequestType, index, length);
+            goto stall;
+        }
+        /* only one altsetting in this driver */
+        buf[0] = 0;
+        status = TEMP_FAILURE_RETRY(write(fd, buf, length));
+        localErrno = errno;
+        if (status < 0)
+        {
+            if (localErrno == EIDRM)
+            {
+                usbtmc488_tsprintf(
+                    "usbtmc488: %s: GET_INTERFACE timeout\n",
+                    __FUNCTION__);
+            }
+            else
+            {
+                perror("usbtmc488: write GET_INTERFACE data - error info");
+            }
+        }
+        else if (status != length)
+        {
+            usbtmc488_tsprintf("%s: short GET_INTERFACE write, %d\n", __FUNCTION__, status);
+        }
+        return;
+
+    case USB_REQ_SET_INTERFACE:
+        if ((setup->bRequestType != USB_RECIP_INTERFACE)
+            || (index != 0)
+            || (value != 0))
+        {
+            usbtmc488_tsprintf("%s: USB_REQ_SET_INTERFACE ERROR: %s\n"
+                       "    setup->bRequestType=%d, index=%d, length=%d\n",
+                __FUNCTION__, setup->bRequestType, index, length);
+            goto stall;
+        }
+        usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+            "%s: INTERFACE #%d\n", __FUNCTION__, value);
+
+        /* ... and ack (a write would stall) */
+        status = TEMP_FAILURE_RETRY(read(fd, buf, 0));
+        localErrno = errno;
+        if (status)
+        {
+            usbtmc488_tsprintf("%s: ACK USB_REQ_SET_INTERFACE ERROR: %s\n",
+                __FUNCTION__, strerror(localErrno));
+        }
+        return;
+
+    case USB_REQ_SYNCH_FRAME:
+        usbtmc488_tsprintf("%s: UNHANDLED ch9 REQUEST USB_REQ_SYNCH_FRAME\n",
+            __FUNCTION__);
+        /* ... ack (a write would stall) */
+        status = TEMP_FAILURE_RETRY(read(fd, buf, 0));
+        localErrno = errno;
+        if (status)
+        {
+            usbtmc488_tsprintf("%s: ACK USB_REQ_SYNCH_FRAME ERROR: %s\n",
+                __FUNCTION__, strerror(localErrno));
+        }
+        return;
+
+    default:
+        usbtmc488_tsprintf("%s: UNHANDLED ch9 REQUEST %02x\n",
+            __FUNCTION__, setup->bRequest);
+        return;
     }
 stall:
     usbtmc488_tsprintf("usbtmc488: %s: protocol stall\n"
@@ -3225,26 +3091,25 @@ stall:
      * in the "wrong" direction.  ep0 is special only because
      * the direction isn't fixed.
      */
-    if ( setup->bRequestType & USB_DIR_IN )
+    if (setup->bRequestType & USB_DIR_IN)
     {
         status = TEMP_FAILURE_RETRY(read(fd, buf, 0));
     }
     else
     {
         status = TEMP_FAILURE_RETRY(write(fd, buf, 0));
-        fsync(fd);
     }
-    if ( status != -1 )
+    if (status != -1)
     {
-        usbtmc488_tsprintf( "usbtmc488: %s: can't stall ep0 for\n"
+        usbtmc488_tsprintf("usbtmc488: %s: can't stall ep0 for\n"
             "  setup->bRequestType  = 0x%02x\n"
             "  setup->bRequest      = 0x%02x\n",
         __FUNCTION__, setup->bRequestType, setup->bRequest);
     }
-    else if ( errno != EL2HLT )
+    else if (errno != EL2HLT)
     {
         //perror("usbtmc488: ep0 stall - error info");
-        usbtmc488_tsprintf( "usbtmc488: %s: ep0 stall errno %d\n"
+        usbtmc488_tsprintf("usbtmc488: %s: ep0 stall errno %d\n"
             "  setup->bRequestType  = 0x%02x\n"
             "  setup->bRequest      = 0x%02x\n",
         __FUNCTION__, errno, setup->bRequestType, setup->bRequest);
@@ -3258,25 +3123,23 @@ stall:
 #define MAXEVENTS       5
 
 PRIVATE void
-ep0_thread_cleanup( void *fd_ptr )
+ep0_thread_cleanup(void *fd_ptr)
 {
-
     (void)fd_ptr;
-    close_fd(&ep0_fd);
-    ep0_fd = -ENODEV;
+
+    if (ep0_fd > 0)
+    {
+        close_fd(&ep0_fd);
+    }
     usbtmcDbgPrint(USBTMC488_THREADS, "%s: done\n", __FUNCTION__);
 }
 
 PRIVATE void *
 ep0_thread(void *param)
 {
-    int fd         = *((int *) param);
     int localErrno = 0;
 
-printf("ep0_thread fd is %d\n", fd);
-    //ep0_fd = fd;
-
-    ep0_tid = pthread_self();
+    (void)param;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0)
     usbtmcThreadArray[USBTMC488_EP0_THREAD].pid = syscall(__NR_gettid);
@@ -3287,98 +3150,105 @@ printf("ep0_thread fd is %d\n", fd);
         "usbtmc EPO thread",
             USBTMC_MAX_THREADNAME_LENGTH);
 
-    pthread_cleanup_push(ep0_thread_cleanup, &ep0_fd);
+    pthread_cleanup_push(ep0_thread_cleanup, NULL);
 
     MaxTransferSize = 0;
     MaxPacketSize = 0;
 
     /* event loop */
-    for ( ;; )
+    for (;;)
     {
         int                         tmp;
-        struct usb_functionfs_event event [MAXEVENTS];
+        struct usb_functionfs_event event[MAXEVENTS];
         int                         i, nevent;
         BOOL                        connected = FALSE;
 
         pthread_testcancel();
         errno = localErrno = 0;
 
-        tmp = TEMP_FAILURE_RETRY(read(fd, &event, sizeof(event)));
+        tmp = TEMP_FAILURE_RETRY(read(ep0_fd, &event, sizeof(event)));
         localErrno = errno;
-        if ( tmp < 0 )
+        if (tmp < 0)
         {
-            if ( localErrno == EAGAIN )
+            if (localErrno == EAGAIN)
             {
-                usbtmc488_sleep(1);
+                usbtmc488_usleep(1);
                 continue;
             }
-            usbtmc488_tsprintf("%s: ep0 read error: fd=%d, localErrno=%d (%s)\n",
+            usbtmc488_tsprintf("%s: ep0 read error: ep0_fd=%d, localErrno=%d (%s)\n",
                 __FUNCTION__,
-                fd,
+                ep0_fd,
                 localErrno,
                 strerror(localErrno));
             goto done;
         }
         nevent = tmp / sizeof(event[0]);
-        if ( nevent != 1 )
+        if (nevent != 1)
         {
             usbtmcDbgPrint(USBTMC488_EP_CONTROL,
                 "%s: read %d ep0 events\n",
                 __FUNCTION__, nevent);
         }
 
-        for ( i = 0; i < nevent; i++ )
+        for (i = 0; i < nevent; i++)
         {
-            switch ( event [i].type )
+            switch (event[i].type)
             {
-                case FUNCTIONFS_ENABLE:
-                    //usbtmc488_tsprintf("usbtmc488: %s: EP0 EVENT: ENABLE\n", __FUNCTION__);
-                    MaxTransferSize = MAX_TRANSFER_SIZE_HS;
-                    MaxPacketSize = MAX_PACKET_SIZE_HS;
-                    current_speed = USB_SPEED_HIGH;
-                    connected = 1;
-                    start_io();
-                    break;
-                case FUNCTIONFS_SETUP:
-                    connected = 1;
-                    handle_control(fd, &event [i].u.setup);
-                    break;
-                case FUNCTIONFS_UNBIND:
-                case FUNCTIONFS_DISABLE:
-                    connected = 0;
-                    current_speed = USB_SPEED_UNKNOWN;
+            case FUNCTIONFS_ENABLE:
+                //usbtmc488_tsprintf("usbtmc488: %s: EP0 EVENT: ENABLE\n", __FUNCTION__);
+//DWG - What about setting these defaults?
+                MaxTransferSize = MAX_TRANSFER_SIZE_HS;
+                MaxPacketSize = MAX_PACKET_SIZE_HS;
+                current_speed = USB_SPEED_HIGH;
+                connected = 1;
+                start_io();
+                break;
+
+            case FUNCTIONFS_SETUP:
+                connected = 1;
+                handle_control(ep0_fd, &event[i].u.setup);
+                break;
+
+            case FUNCTIONFS_UNBIND:
+            case FUNCTIONFS_DISABLE:
+                connected = 0;
+                current_speed = USB_SPEED_UNKNOWN;
 #if 0
-                    if (event [i].type == FUNCTIONFS_UNBIND)
-                        usbtmc488_tsprintf("usbtmc488: %s: EP0 EVENT: UNBIND\n", __FUNCTION__);
-                    else
-                        usbtmc488_tsprintf("usbtmc488: %s: EP0 EVENT: DISABLE\n", __FUNCTION__);
+                if (event[i].type == FUNCTIONFS_UNBIND)
+                    usbtmc488_tsprintf("usbtmc488: %s: EP0 EVENT: UNBIND\n", __FUNCTION__);
+                else
+                    usbtmc488_tsprintf("usbtmc488: %s: EP0 EVENT: DISABLE\n", __FUNCTION__);
 #endif
-                    /* Allow the request thread to run so the kernel layer can return
-                     * -1 with errno=ESHUTDOWN for the bulkout read which will be
-                     * pending.
-                     */
-                    usbtmc488_sleep(100);
-                    usbtmcDbgPrint(USBTMC488_EP_CONTROL,
-                            "%s: (%s:%d) Stopping I/O\n",
-                            __FUNCTION__, __FILE__, __LINE__);
-                    stop_io();
-                    break;
-                case FUNCTIONFS_SUSPEND:
-                    /* connected = 1; */
-                    //usbtmc488_tsprintf("usbtmc488: %s: EP0 EVENT: SUSPEND\n", __FUNCTION__);
-                    break;
-                case FUNCTIONFS_BIND:
-                    //usbtmc488_tsprintf("usbtmc488: %s: EP0 EVENT: BIND\n", __FUNCTION__);
-                    break;
-                default:
-                    usbtmc488_tsprintf( "usbtmc488: %s: " "EP0 EVENT: unhandled event %d\n",
-                            __FUNCTION__, event [i].type);
-                    break;
+                /* Allow the request thread to run so the kernel layer can return
+                 * -1 with errno=ESHUTDOWN for the bulkout read which will be
+                 * pending.
+                 */
+                usbtmc488_usleep(100);
+                usbtmcDbgPrint(USBTMC488_EP_CONTROL,
+                        "%s: (%s:%d) Stopping I/O\n",
+                        __FUNCTION__, __FILE__, __LINE__);
+                stop_io();
+                break;
+
+            case FUNCTIONFS_SUSPEND:
+                /* connected = 1; */
+                //usbtmc488_tsprintf("usbtmc488: %s: EP0 EVENT: SUSPEND\n", __FUNCTION__);
+                break;
+
+            case FUNCTIONFS_BIND:
+                //usbtmc488_tsprintf("usbtmc488: %s: EP0 EVENT: BIND\n", __FUNCTION__);
+                break;
+
+            default:
+                usbtmc488_tsprintf("usbtmc488: %s: " "EP0 EVENT: unhandled event %d\n",
+                        __FUNCTION__, event[i].type);
+                break;
             }
         }
         continue;
-        done:
-        if ( connected )
+
+    done:
+        if (connected)
         {
             usbtmcDbgPrint(USBTMC488_EP_CONTROL,
                 "%s: (%s:%d) Stopping I/O\n",
@@ -3395,13 +3265,13 @@ printf("ep0_thread fd is %d\n", fd);
 /*-------------------------------------------------------------------------*/
 
 PRIVATE int
-initialize_driver( void )
+initialize_driver(void)
 {
     static BOOL bFatalError = FALSE;
     int         localErrno  = 0;
     int ii;
 
-    if ( bFatalError )
+    if (bFatalError)
     {
         return -1;
     }
@@ -3409,44 +3279,30 @@ initialize_driver( void )
     /* Initialize the thread array */
     memset(usbtmcThreadArray, 0, sizeof(usbtmcThreadArray));
 
-    for (ii=0; ii<NUM_LOCKS; ii++)
+    for (ii = 0; ii < NUM_LOCKS; ii++)
     {
+        if ((lockInfo[ii].pLock = (sem_t *) malloc(sizeof(sem_t))) == NULL)
+        {
+            localErrno = errno;
+            usbtmc488_tsprintf(
+                "%s: Fatal initialization error\n"
+                "  Unable to allocate sem_t %s error: %s\n",
+                __FUNCTION__, lockInfo[ii].name, strerror(localErrno));
+            bFatalError = TRUE;
+            return -1;
+        }
+
         /* Initialize as not shareable between processes and available */
-        if ( 0 > sem_init(pLockArray[ii],0,1) )
+        if (sem_init(lockInfo[ii].pLock, 0, 1) < 0)
         {
             localErrno = errno;
             usbtmc488_tsprintf(
                 "%s: Fatal initialization error\n"
                 "  sem_init(%s) error: %s\n",
-                __FUNCTION__, lockTypeStrings[ii], strerror(localErrno));
+                __FUNCTION__, lockInfo[ii].name, strerror(localErrno));
             bFatalError = TRUE;
             return -1;
         }
-    }
-    /* Initialize these semaphores separately because they cannot be used
-     * by the macros WAITFOR, UNLOCK, etc.
-     */
-    /* Initialize as not shareable between processes and available */
-    if ( 0 > sem_init(&debugLock,0,1) )
-    {
-        localErrno = errno;
-        usbtmc488_tsprintf(
-            "%s: Fatal initialization error\n"
-            "  sem_init(&debugLock) error: %s\n",
-            __FUNCTION__, strerror(localErrno));
-        bFatalError = TRUE;
-        return -1;
-    }
-    /* Initialize as not shareable between processes and available */
-    if ( 0 > sem_init(&tsPrintLock,0,1) )
-    {
-        localErrno = errno;
-        usbtmc488_tsprintf(
-            "%s: Fatal initialization error\n"
-            "  sem_init(&tsPrintLock) error: %s\n",
-            __FUNCTION__, strerror(localErrno));
-        bFatalError = TRUE;
-        return -1;
     }
     driver_initialized = TRUE;
     return 0;
@@ -3463,7 +3319,7 @@ usbtmc488_get_thread_info(unsigned int                *returnedNumThreads,
 
 /*-------------------------------------------------------------------------*/
 USBTMC488_STATUS
-usbtmc488_enable_interface( const  USBTMC488_DEVICE_INFO *device_info,
+usbtmc488_enable_interface(const  USBTMC488_DEVICE_INFO *device_info,
                 void   (*event_handler)(const USBTMC488_MESSAGE *msg, void* pData), void* pData)
 {
     int sem_status = 0, sem_errno = 0;
@@ -3477,9 +3333,9 @@ usbtmc488_enable_interface( const  USBTMC488_DEVICE_INFO *device_info,
     /* Perform the startup initialization if this is the first time
      * we've been called.
      */
-    if ( FALSE == driver_initialized )
+    if (!driver_initialized)
     {
-        if ( 0 != initialize_driver() )
+        if (initialize_driver() != 0)
         {
             usbtmc488_tsprintf("%s: Failed to initialize driver!\n",
                 __FUNCTION__);
@@ -3490,7 +3346,6 @@ usbtmc488_enable_interface( const  USBTMC488_DEVICE_INFO *device_info,
     WAITFOR(USER_SERVICE_LOCK);
 
     USBTMC488_STATUS   retValue = USBTMC488_SUCCESS;
-    static int fd = -EINVAL;
     const unsigned int maxResponseBufSizeFS =
         MAX_TRANSFER_SIZE_FS+sizeof(struct usbtmc_bulk_in_msg);
     const unsigned int maxRequestBufSizeFS =
@@ -3503,14 +3358,14 @@ usbtmc488_enable_interface( const  USBTMC488_DEVICE_INFO *device_info,
         max(max(maxResponseBufSizeFS, maxRequestBufSizeFS),
             max(maxResponseBufSizeHS, maxRequestBufSizeHS));
 
-    if ( NULL == device_info )
+    if (device_info == NULL)
     {
         usbtmc488_tsprintf("%s: NULL device info\n", __FUNCTION__);
         retValue = USBTMC488_INTERFACE_NOT_ENABLED;
         goto uei_exit;
     }
 
-    if ( FALSE != usbtmc_interface_enabled )
+    if (usbtmc_interface_enabled)
     {
         usbtmcDbgPrint(USBTMC488_API,
             "%s: already enabled\n", __FUNCTION__);
@@ -3525,7 +3380,7 @@ usbtmc488_enable_interface( const  USBTMC488_DEVICE_INFO *device_info,
     memset(&last_req_dev_dep_msgin_msg, 0, sizeof(last_req_dev_dep_msgin_msg));
     memset(&last_bulkout_hdr, 0, sizeof(last_bulkout_hdr));
 
-    if ( NULL == event_handler )
+    if (event_handler == NULL)
     {
         usbtmcDbgPrint(USBTMC488_API,
             "%s: event handler is NULL\n", __FUNCTION__);
@@ -3537,9 +3392,45 @@ usbtmc488_enable_interface( const  USBTMC488_DEVICE_INFO *device_info,
         usbtmc_event_handler = event_handler;
     }
 
-    device_desc.idVendor = __cpu_to_le16(current_device_info.vendorId);
-    device_desc.idProduct = __cpu_to_le16(current_device_info.productId);
-    device_desc.bcdDevice = __cpu_to_le16(current_device_info.productVersion);
+#ifdef _ENABLE_AUTO_KERNEL_MODULE
+{
+    char cmd[512];
+
+    sprintf(cmd, "modprobe g_ffs"
+        " idVendor=0x%04X"
+        " idProduct=0x%04X"
+        " bcdDevice=0x%04X"
+        " iManufacturer='%s'"
+        " iProduct='%s'"
+        " iSerialNumber='%s'"
+        " functions=tmc",
+            current_device_info.vendorId,
+            current_device_info.productId,
+            current_device_info.productVersion,
+            current_device_info.manufacturerDescr,
+            current_device_info.productDescr,
+            current_device_info.productSerialNumberDescr);
+
+//DWG What about these parameters?
+//DWG    __u8   maxPower;
+//DWG    int    selfPowered;
+
+    sprintf(&(cmd[strlen(cmd)]),
+        "; mkdir -p /dev/gadget"
+        " && mount -t functionfs tmc /dev/gadget");
+
+    usbtmcDbgPrint(USBTMC488_SYSTEM,
+        "%s: Execute system('%s')\n", __FUNCTION__, cmd);
+    status = system(cmd);
+    if (status < 0)
+    {
+        usbtmc488_tsprintf("%s: system('%s' failed: status=%d (%s)\n",
+                __FUNCTION__, cmd, status, strerror(status));
+    }
+
+    usbtmc488_usleep(250);
+}
+#endif /* _ENABLE_AUTO_KERNEL_MODULE */
 
     WAITFOR(STRINGTAB_LOCK);
 
@@ -3550,52 +3441,57 @@ usbtmc488_enable_interface( const  USBTMC488_DEVICE_INFO *device_info,
           strlen(current_device_info.configurationDescr) + 1 +
           strlen(current_device_info.interfaceDescr) + 1;
 
-    strings = (struct usb_functionfs_stringtab *) malloc(len);
-    strings->header.magic = __cpu_to_le32(FUNCTIONFS_STRINGS_MAGIC);
-    strings->header.length = len;
-    strings->header.str_count = __cpu_to_le32(NUM_STRINGIDS);
-    strings->header.lang_count = __cpu_to_le32(1);
-    strings->language = __cpu_to_le16(LANGUAGE_ID_ENGLISH_US);
-    p = strings->str;
+    if (usb_strings != NULL)
+    {
+        free(usb_strings);
+        usb_strings = NULL;
+    }
+
+    usb_strings = (struct usb_functionfs_stringtab *) malloc(len);
+    usb_strings->header.magic = __cpu_to_le32(FUNCTIONFS_STRINGS_MAGIC);
+    usb_strings->header.length = len;
+    usb_strings->header.str_count = __cpu_to_le32(NUM_STRINGIDS);
+    usb_strings->header.lang_count = __cpu_to_le32(1);
+    usb_strings->language = __cpu_to_le16(LANGUAGE_ID_ENGLISH_US);
+    p = usb_strings->str;
 
     // STRINGID_MFGR = 1
     strcpy(p, current_device_info.manufacturerDescr);
-    p += strlen(current_device_info.manufacturerDescr) + 1;
+    p += strlen(p) + 1;
 
     // STRINGID_PRODUCT = 2
     strcpy(p, current_device_info.productDescr);
-    p += strlen(current_device_info.productDescr) + 1;
+    p += strlen(p) + 1;
 
     // STRINGID_SERIAL = 3
     strcpy(p, current_device_info.productSerialNumberDescr);
-    p += strlen(current_device_info.productSerialNumberDescr) + 1;
+    p += strlen(p) + 1;
 
     // STRINGID_CONFIG = 4
     strcpy(p, current_device_info.configurationDescr);
-    p += strlen(current_device_info.configurationDescr) + 1;
+    p += strlen(p) + 1;
 
     // STRINGID_INTERFACE = 5
     strcpy(p, current_device_info.interfaceDescr);
-    p += strlen(current_device_info.interfaceDescr) + 1;
+    p += strlen(p) + 1;
 
     UNLOCK(STRINGTAB_LOCK);
 
-    if ( USBTMC488_SUCCESS == retValue )
+    if (retValue == USBTMC488_SUCCESS)
     {
         bulkout_thread = usbtmc_request_thread;
         intrpt_thread = usbtmc_intrpt_thread;
 
-        fd = init_device();
-//sjz printf("usbtmc488_enable_interface fd is %d\n", fd);
-
-        if ( fd < 0 )
+        status = init_device();
+        if (status < 0)
         {
+            usbtmc488_tsprintf("%s: init_device() failed\n", __FUNCTION__);
             retValue = USBTMC488_INTERFACE_NOT_ENABLED;
             goto uei_exit;
         }
-        usbtmc488_sleep(100);
+        usbtmc488_usleep(100);
         status = pthread_attr_init(&attr);
-        if ( 0 != status )
+        if (status != 0)
         {
             usbtmc488_tsprintf("%s: pthread_attr_init failed: status=%d (%s)\n",
                     __FUNCTION__, status, strerror(status));
@@ -3603,14 +3499,14 @@ usbtmc488_enable_interface( const  USBTMC488_DEVICE_INFO *device_info,
             goto uei_exit;
         }
         status = pthread_attr_setstacksize(&attr, USBTMC488_STACK_SIZE);
-        if ( 0 != status )
+        if (status != 0)
         {
             usbtmc488_tsprintf("%s: pthread_attr_setstacksize failed: status=%d (%s)\n",
                     __FUNCTION__, status, strerror(status));
             retValue = USBTMC488_INTERFACE_NOT_ENABLED;
             goto uei_exit;
         }
-        if ( pthread_create(&ep0_tid, &attr, ep0_thread, (void *) &fd) != 0 )
+        if (pthread_create(&ep0_tid, &attr, ep0_thread, NULL) != 0)
         {
             localErrno = errno;
             usbtmc488_tsprintf("%s: error creating ep0 thread: localErrno=%d (%s)\n",
@@ -3618,26 +3514,25 @@ usbtmc488_enable_interface( const  USBTMC488_DEVICE_INFO *device_info,
             retValue = USBTMC488_INTERFACE_NOT_ENABLED;
             goto uei_exit;
         }
-
         pthread_setname_np(ep0_tid, "USBTMCcntl0");
 
         status = pthread_attr_destroy(&attr);
-        if ( 0 != status )
+        if (status != 0)
         {
             usbtmc488_tsprintf("%s: pthread_attr_destroy failed: status=%d (%s)\n",
                     __FUNCTION__, status, strerror(status));
         }
-        if ( NULL != pResponseMsg )
+        if (pResponseMsg != NULL)
         {
             usbtmc488_tsprintf("%s: pResponseMsg not NULL!\n", __FUNCTION__);
         }
-        if ( NULL != pRequestBuffer )
+        if (pRequestBuffer != NULL)
         {
             usbtmc488_tsprintf("%s: pRequestBuffer not NULL!\n", __FUNCTION__);
         }
-        if ( 0 != posix_memalign((void **)&pResponseMsg,
-                    sizeof(void *),
-                    (size_t) bufferAllocSize) )
+        if (posix_memalign((void **)&pResponseMsg,
+                sizeof(void *),
+                (size_t) bufferAllocSize) != 0)
         {
             usbtmc488_tsprintf(
                     "usbtmc488: %s: Unable to alloc %d bytes for "
@@ -3647,9 +3542,9 @@ usbtmc488_enable_interface( const  USBTMC488_DEVICE_INFO *device_info,
             retValue = USBTMC488_INTERFACE_NOT_ENABLED;
             goto uei_exit;
         }
-        if ( 0 != posix_memalign((void **)&pRequestBuffer,
-                    sizeof(void *),
-                    (size_t) bufferAllocSize) )
+        if (posix_memalign((void **)&pRequestBuffer,
+                sizeof(void *),
+                (size_t) bufferAllocSize) != 0)
         {
             usbtmc488_tsprintf(
                     "usbtmc488: %s: Unable to alloc %d bytes for "
@@ -3671,10 +3566,12 @@ uei_exit:
     UNSIGNAL_EVENT(TALKADDR_OR_TERMINATE);
     UNSIGNAL_EVENT(INTRPT_EVENT);
     UNSIGNAL_EVENT(INTRPT_DONE_EVENT);
-    if ( USBTMC488_SUCCESS == retValue )
+    if (retValue == USBTMC488_SUCCESS)
     {
-        //usbtmc488_tsprintf("%s: USBTMC enabled; response buffer size = %d\n",
-        //    __FUNCTION__, bufferAllocSize);
+#ifdef _DWG_DBG
+        usbtmc488_tsprintf("%s: USBTMC enabled; response buffer size = %d\n",
+            __FUNCTION__, bufferAllocSize);
+#endif // _DWG_DBG
     }
     else
     {
@@ -3682,19 +3579,19 @@ uei_exit:
     }
     UNLOCK(USER_SERVICE_LOCK);
 
-    usbtmc488_sleep(500);
+    usbtmc488_usleep(500);
 
     return(retValue);
 }
 
 /*-------------------------------------------------------------------------*/
 USBTMC488_STATUS
-usbtmc488_disable_interface( void )
+usbtmc488_disable_interface(void)
 {
     int sem_status = 0, sem_errno = 0;
     int status     = 0;
 
-    if ( (FALSE == driver_initialized) || (FALSE == usbtmc_interface_enabled) )
+    if (!driver_initialized || !usbtmc_interface_enabled)
     {
         return(USBTMC488_INTERFACE_NOT_ENABLED);
     }
@@ -3711,26 +3608,26 @@ usbtmc488_disable_interface( void )
         "%s: (%s:%d) Stopping I/O\n",
         __FUNCTION__, __FILE__, __LINE__);
     stop_io();
-    if ( NULL != pResponseMsg )
+    if (pResponseMsg != NULL)
     {
         free(pResponseMsg);
         pResponseMsg = NULL;
     }
-    if ( NULL != pRequestBuffer )
+    if (pRequestBuffer != NULL)
     {
         free(pRequestBuffer);
         pRequestBuffer = NULL;
     }
-    if ( -1 != (int)ep0_tid )
+    if ((int)ep0_tid != -1)
     {
         status = pthread_cancel(ep0_tid);
-        if ( 0 != status )
+        if (status != 0)
         {
             usbtmc488_tsprintf("%s: error %d (%s) cancelling ep0 thread\n",
                 __FUNCTION__, status, strerror(status));
         }
         status = pthread_join(ep0_tid, 0);
-        if ( status != 0 )
+        if (status != 0)
         {
             usbtmc488_tsprintf("%s: error returned from pthread_join(ep0_tid): %d (%s)\n",
                 __FUNCTION__, status, strerror(status));
@@ -3740,31 +3637,53 @@ usbtmc488_disable_interface( void )
     usbtmc_interface_enabled = FALSE;
     usbtmc_event_handler = NULL;
     memset(&current_device_info, 0, sizeof(current_device_info));
+
+#ifdef _ENABLE_AUTO_KERNEL_MODULE
+{
+    char cmd[128];
+
+    usbtmc488_usleep(250);
+
+    sprintf(cmd, "umount /dev/gadget; rmmod g_ffs usb_f_fs");
+
+    usbtmcDbgPrint(USBTMC488_SYSTEM,
+        "%s: Execute system('%s')\n", __FUNCTION__, cmd);
+    status = system(cmd);
+    if (status < 0)
+    {
+        usbtmc488_tsprintf("%s: system('%s' failed: status=%d (%s)\n",
+                __FUNCTION__, cmd, status, strerror(status));
+    }
+}
+#endif /* _ENABLE_AUTO_KERNEL_MODULE */
+
     /* Allow time for the request thread to exit before returning control
      * to the application in case it immediately re-enables the interface.
      */
-    usbtmc488_sleep(100);
-    //usbtmc488_tsprintf("%s: USBTMC disabled\n", __FUNCTION__);
+    usbtmc488_usleep(100);
+#ifdef _DWG_DBG
+    usbtmc488_tsprintf("%s: USBTMC disabled\n", __FUNCTION__);
+#endif // _DWG_DBG
 
     UNLOCK(USER_SERVICE_LOCK);
     return(USBTMC488_SUCCESS);
 }
 
-BOOL usbtmc488_interface_enabled( void )
+BOOL usbtmc488_interface_enabled(void)
 {
     int sem_status = 0, sem_errno = 0;
-    if ( FALSE == driver_initialized )
+    if (!driver_initialized)
     {
         return(FALSE);
     }
     WAITFOR(USER_SERVICE_LOCK);
-    int state = usbtmc_interface_enabled;
+    BOOL state = usbtmc_interface_enabled;
     UNLOCK(USER_SERVICE_LOCK);
     return(state);
 }
 
 USBTMC488_STATUS
-usbtmc488_message( const USBTMC488_MESSAGE *msg )
+usbtmc488_message(const USBTMC488_MESSAGE *msg)
 {
     int         sem_status = 0, sem_errno = 0;
     int         timed_wait_status    = 0;
@@ -3781,20 +3700,20 @@ usbtmc488_message( const USBTMC488_MESSAGE *msg )
 
     USBTMC488_STATUS retStatus = USBTMC488_SUCCESS;
 
-    if ( (FALSE == driver_initialized) || (FALSE == usbtmc_interface_enabled) )
+    if (!driver_initialized || !usbtmc_interface_enabled)
     {
         retStatus = USBTMC488_INTERFACE_NOT_ENABLED;
         goto um_exit;
     }
-    switch ( msg->type )
+    switch (msg->type)
     {
     case USBTMC488_MSG_DATA_WITHOUT_EOM:
     case USBTMC488_MSG_DATA_WITH_EOM:
+#ifdef _DWG_DBG
+        usbtmc488_tsprintf("%s MSG_DATA_%s_EOM\n", __FUNCTION__, ((msg->type == USBTMC488_MSG_DATA_WITH_EOM) ? "WITH" : "WITHOUT"));
+#endif // _DWG_DBG
 
-        //usbtmc488_tsprintf("%s MSG_DATA_WITH/WITHOUT_EOM\n", __FUNCTION__);
-        //usbtmc488_tsprintf("SENDING MESSAGE: %s\n", msg->msg_buffer->buffer);
-
-        if ( TRUE == response_in_progress )
+        if (response_in_progress)
         {
             retStatus = USBTMC488_NO_DATA_REQUESTED;
             goto um_exit;
@@ -3807,14 +3726,20 @@ usbtmc488_message( const USBTMC488_MESSAGE *msg )
         retStatus = queue_response_msg(msg);
         response_in_progress = FALSE;
         break;
+
     case USBTMC488_MSG_UPDATE_STATUS_BYTE:
-        //printf("%s MSG_UPDATE_STATUS_BYTE\n", __func__);
+#ifdef _DWG_DBG
+        printf("%s MSG_UPDATE_STATUS_BYTE (0x%02X)\n", __FUNCTION__, msg->value);
+#endif // _DWG_DBG
         WAITFOR(STATUS_BYTE_LOCK);
         usbtmc_status_byte = msg->value;
         UNLOCK(STATUS_BYTE_LOCK);
         break;
+
     case USBTMC488_MSG_REQUEST_SERVICE:
-        //printf("%s MSG_REQUEST_SERVICE\n", __func__);
+#ifdef _DWG_DBG
+        printf("%s MSG_REQUEST_SERVICE (0x%02X)\n", __FUNCTION__, msg->value);
+#endif // _DWG_DBG
         WAITFOR(STATUS_BYTE_LOCK);
         WAITFOR(INTRPT_LOCK);
         usbtmc_status_byte = msg->value;
@@ -3835,13 +3760,13 @@ usbtmc488_message( const USBTMC488_MESSAGE *msg )
          * write to the interrupt-in file descriptor.
          */
         timed_wait_status = timed_wait(INTRPT_DONE_EVENT, INTRPT_TIMEOUT);
-        if ( (0 != timed_wait_status) && (ETIMEDOUT == errno) )
+        if ((timed_wait_status != 0) && (errno == ETIMEDOUT))
         {
             usbtmc488_tsprintf("%s: MSG_REQUEST_SERVICE Timeout (%d msec) waiting for "
                 "INTRPT_DONE_EVENT\n",
                 __FUNCTION__, INTRPT_TIMEOUT);
         }
-        else if ( 0 != timed_wait_status )
+        else if (timed_wait_status != 0)
         {
             usbtmc488_tsprintf("%s: Error %d (%s) waiting for INTRPT_DONE_EVENT\n",
                 __FUNCTION__, timed_wait_status, strerror(timed_wait_status));
@@ -3850,8 +3775,11 @@ usbtmc488_message( const USBTMC488_MESSAGE *msg )
         UNLOCK(INTRPT_LOCK);
         UNLOCK(STATUS_BYTE_LOCK);
         break;
+
     case USBTMC488_MSG_CANCEL_IO:
-        //printf("%s MSG_CANCEL_IO\n", __func__);
+#ifdef _DWG_DBG
+        printf("%s MSG_CANCEL_IO\n", __FUNCTION__);
+#endif // _DWG_DBG
         WAITFOR(RESPONSE_LOCK);
         responseState = TERMINATE;
         bulkin_inprogress = BULKIN_IDLE;
@@ -3860,19 +3788,27 @@ usbtmc488_message( const USBTMC488_MESSAGE *msg )
         response_in_progress = FALSE;
         UNLOCK(RESPONSE_LOCK);
         break;
+
     case USBTMC488_MSG_DEVICE_CLEAR_DONE:
-//sjz        printf("%s MSG_DEVICE_CLEAR_DONE\n", __func__);
+#ifdef _DWG_DBG
+        printf("%s MSG_DEVICE_CLEAR_DONE\n", __FUNCTION__);
+#endif // _DWG_DBG
         UNLOCK(DEVICE_CLEAR_LOCK);
         break;
+
     case USBTMC488_MSG_FREE_REQUEST_MSG:
-//sjz        printf("%s MSG_FREE_REQUEST_MSG\n", __func__);
+#ifdef _DWG_DBG
+        printf("%s MSG_FREE_REQUEST_MSG\n", __FUNCTION__);
+#endif // _DWG_DBG
         UNLOCK(REQUEST_LOCK);
         break;
+
     default:
         usbtmc488_tsprintf("usbtmc488: %s: Bad msg type (%d)\n",
             __FUNCTION__, msg->type);
         retStatus = USBTMC488_FAILED;
     }
+
 um_exit:
     return(retStatus);
 }
@@ -3899,18 +3835,18 @@ msgTypeStrings[USBTMC488_NUM_MSG_TYPES] =
     "USBTMC488_MSG_REQUEST_SERVICE",
     "USBTMC488_MSG_REN_ENABLE",
     "USBTMC488_MSG_REN_DISABLE",
-    "USBTMC488_MSG_GOTO_LOCAL",    
+    "USBTMC488_MSG_GOTO_LOCAL",
     "USBTMC488_MSG_CANCEL_IO",
     "USBTMC488_MSG_DEVICE_CLEAR_DONE",
     "USBTMC488_MSG_FREE_REQUEST_MSG",
     "USBTMC488_MSG_GOTO_LOCAL_LOCKOUT",
-    "USBTMC488_MSG_UPDATE_LOCAL_STATUS_BYTE"
+    "USBTMC488_MSG_UPDATE_LOCAL_STATUS_BYTE",
 };
 
 const char *
 usbtmc488_status_to_string(USBTMC488_STATUS status)
 {
-    if ( (0 > status) || (USBTMC488_NUM_STATUSES <= status) )
+    if ((status < 0) || (status >= USBTMC488_NUM_STATUSES))
     {
         return("error: unknown status");
     }
@@ -3923,7 +3859,7 @@ usbtmc488_status_to_string(USBTMC488_STATUS status)
 const char *
 usbtmc488_msg_type_to_string(USBTMC488_MSG_TYPE type)
 {
-    if ( (0 > type) || (USBTMC488_NUM_MSG_TYPES <= type) )
+    if ((type < 0) || (type >= USBTMC488_NUM_MSG_TYPES))
     {
         return("error: unknown msg type");
     }
@@ -3934,53 +3870,38 @@ usbtmc488_msg_type_to_string(USBTMC488_MSG_TYPE type)
 }
 
 void
-usbtmc488_set_verbosity( unsigned int v )
+usbtmc488_set_verbosity(unsigned int v)
 {
     verbosity = v;
 }
 
 unsigned int
-usbtmc488_get_verbosity( void )
+usbtmc488_get_verbosity(void)
 {
     return(verbosity);
 }
 
 const char *
-usbtmc488_show_verbosity_bits( void )
+usbtmc488_show_verbosity_bits(void)
 {
     return(verbosity_table);
 }
 
-void usbtmc488_tsprintf( const char *pFmt, ... )
+void
+usbtmc488_tsprintf(const char *pFmt, ...)
 {
-    int sem_status = 0, sem_errno = 0;
-
-    if ( TRUE == driver_initialized )
-    {
-        if ( 0 != (sem_status = sem_wait(&tsPrintLock)) )
-        {
-            sem_errno = errno;
-            usbtmc488_tsprintf(
-                "usbtmc488: %s: error locking tsPrintLock semaphore\n"
-                "  error: %d (%s)\n",
-                __FUNCTION__,
-                sem_status,
-                strerror(sem_errno));
-        }
-    }
-    va_list   argPtr;
+    va_list          argPtr;
     struct timeval   timeVal;
     struct timezone  tz;
     unsigned int     msecs, usecs;
     char             clockString[64];
-    char             timeOfDay[16];
+    char             timeOfDay[32];
 
-    if ( (0 > gettimeofday(&timeVal, &tz)) ||
-         (NULL == ctime_r(&timeVal.tv_sec, clockString)) ||
-         (1 != sscanf(clockString, "%*s %*s %*s %s", timeOfDay))
-       )
+    if ((gettimeofday(&timeVal, &tz) < 0) ||
+        (ctime_r(&timeVal.tv_sec, clockString) == NULL) ||
+        (sscanf(clockString, "%*s %*s %*s %s", timeOfDay) != 1))
     {
-        printf("%s: Unable to get time of day\n", __FUNCTION__);
+        fprintf(stderr, "%s: Unable to get time of day\n", __FUNCTION__);
     }
     else
     {
@@ -3991,33 +3912,20 @@ void usbtmc488_tsprintf( const char *pFmt, ... )
 
     va_start(argPtr, pFmt);
     vprintf(pFmt, argPtr);
-    fflush(stdout);
     va_end(argPtr);
-    if ( TRUE == driver_initialized )
-    {
-        if ( 0 != (sem_status = sem_post(&tsPrintLock)) )
-        {
-            sem_errno = errno;
-            usbtmc488_tsprintf(
-                "usbtmc488: %s: error unlocking tsPrintLock semaphore\n"
-                "  error: %d (%s)\n",
-                __FUNCTION__,
-                sem_status,
-                strerror(sem_errno));
-        }
-    }
+
     fflush(stdout);
 }
 
 PRIVATE void
-usbtmc488_sleep( unsigned int numMilliseconds )
+usbtmc488_usleep(unsigned int numMilliseconds)
 {
     struct timespec     aLittleNap;
     struct timespec     timeLeft;
 
     aLittleNap.tv_sec = (time_t)(numMilliseconds / 1000);
     aLittleNap.tv_nsec = (time_t)((numMilliseconds % 1000) * 1000000);
-    if ( (0 == aLittleNap.tv_sec) && (0 == aLittleNap.tv_nsec) )
+    if ((aLittleNap.tv_sec == 0) && (aLittleNap.tv_nsec == 0))
     {
         aLittleNap.tv_nsec = 1000;
     }
@@ -4026,7 +3934,7 @@ usbtmc488_sleep( unsigned int numMilliseconds )
 }
 
 PRIVATE int
-timed_wait( USBTMC488_LOCK_TYPE lockType, int msecs )
+timed_wait(USBTMC488_LOCK_TYPE lockType, int msecs)
 {
     int             sem_status = 0;
     int             localErrno = 0;
@@ -4035,9 +3943,9 @@ timed_wait( USBTMC488_LOCK_TYPE lockType, int msecs )
 
     usbtmcDbgPrint(USBTMC488_SYNCH,
         "%s: %s: %d ENTRY\n",
-        __FUNCTION__, lockTypeStrings[lockType], msecs);
+        __FUNCTION__, lockInfo[lockType].name, msecs);
 
-    if ( 0 != clock_gettime(CLOCK_REALTIME, &now) )
+    if (clock_gettime(CLOCK_REALTIME, &now) != 0)
     {
         localErrno = errno;
         usbtmc488_tsprintf("%s: Error returned from clock_gettime: %s\n",
@@ -4047,7 +3955,7 @@ timed_wait( USBTMC488_LOCK_TYPE lockType, int msecs )
 
     secs = 0;
     nsecs = now.tv_nsec + (msecs * 1000000);
-    if ( nsecs >= 1000000000 )
+    if (nsecs >= 1000000000)
     {
         secs = nsecs / 1000000000;
         nsecs = nsecs % 1000000000;
@@ -4055,13 +3963,12 @@ timed_wait( USBTMC488_LOCK_TYPE lockType, int msecs )
     timeout.tv_sec = now.tv_sec + secs;
     timeout.tv_nsec = nsecs;
 
-    sem_status = sem_timedwait(pLockArray[lockType], &timeout);
+    sem_status = sem_timedwait(lockInfo[lockType].pLock, &timeout);
 
     usbtmcDbgPrint(USBTMC488_SYNCH,
         "%s: %s: %d EXIT\n",
-        __FUNCTION__, lockTypeStrings[lockType], msecs);
+        __FUNCTION__, lockInfo[lockType].name, msecs);
 
     return(sem_status);
-
 }
 

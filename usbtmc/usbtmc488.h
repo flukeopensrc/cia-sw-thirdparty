@@ -19,21 +19,29 @@
 #ifndef USBTMC488_H
 #define USBTMC488_H
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #undef __STRICT_ANSI__
 #include <asm/byteorder.h>
 
 #include <linux/types.h>
+#include <linux/usb/gadgetfs.h>
 #include <linux/usb/ch9.h>
 
 #ifndef BOOL
 #define BOOL        unsigned char
 #endif
 
-#undef FALSE
-#define FALSE   0
-
-#undef TRUE
+#ifndef TRUE 
 #define TRUE    1
+#endif
+
+#ifndef FALSE 
+#define FALSE   0
+#endif
 
 #define USBTMC488_DEVINFO_STRING_BUFSIZE   128
 #define USBTMC_STRING_DESCR_MAX_LENGTH     126
@@ -121,7 +129,6 @@ typedef enum
     USBTMC488_MSG_GOTO_LOCAL_LOCKOUT        = 13,
     USBTMC488_MSG_UPDATE_LOCAL_STATUS_BYTE  = 14,    
     USBTMC488_NUM_MSG_TYPES                 = 15
-
 } USBTMC488_MSG_TYPE;
 
 typedef struct
@@ -148,7 +155,7 @@ typedef struct
 extern void usbtmc488_tsprintf( const char *pFmt, ... );
 
 extern USBTMC488_STATUS usbtmc488_get_thread_info(unsigned int *returnedNumThreads, const USBTMC488_THREAD_INFO **pThreadArray);
-extern USBTMC488_STATUS usbtmc488_enable_interface( const  USBTMC488_DEVICE_INFO *device_info, void   (*event_handler)(const USBTMC488_MESSAGE *msg, void* pData), void* pData = nullptr);
+extern USBTMC488_STATUS usbtmc488_enable_interface( const  USBTMC488_DEVICE_INFO *device_info, void   (*event_handler)(const USBTMC488_MESSAGE *msg, void* pData), void* pData);
 extern USBTMC488_STATUS usbtmc488_disable_interface( void );
 extern BOOL usbtmc488_interface_enabled( void );
 
@@ -207,8 +214,12 @@ extern const char* usbtmc488_msg_type_to_string(USBTMC488_MSG_TYPE type);
 #define USBTMC488_SYSTEM       (1 << 7)
 #define USBTMC488_THREADS      (1 << 8)
 
-extern void usbtmc488_set_verbosity( unsigned int v );
+extern void usbtmc488_set_verbosity(unsigned int verbosity);
 extern unsigned int usbtmc488_get_verbosity( void );
 extern const char * usbtmc488_show_verbosity_bits( void );
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* USBTMC488_H */
