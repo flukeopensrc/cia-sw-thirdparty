@@ -1,7 +1,7 @@
 /**************************************************************************************/
-/* Source Code Module for JPA-SCPI PARSER V1.3.5-CPP (C++ version of Parser V1.3.5)		*/
+/* Source Code Module for JPA-SCPI PARSER V1.4.1-CPP (C++ version of Parser V1.3.5)		*/
 /*																																										*/
-/* (C) JPA Consulting Ltd., 2016	(www.jpacsoft.com)																	*/
+/* (C) JPA Consulting Ltd., 2019	(www.jpacsoft.com)																	*/
 /*																																										*/
 /* View this file with tab spacings set to 2																					*/
 /*																																										*/
@@ -20,6 +20,12 @@
 /* Module Revision History																														*/
 /* -----------------------																														*/
 /* V1.0.0:29/07/16:Initial Version 																										*/
+/* V1.0.1:17/07/18:Fixed name of SCPIParser::SCPI_Parse() function used when SUPPORT_-*/
+/*                 NUM_SUFFIX is not defined (was Parse())														*/
+/* V1.0.2:16/02/19:Add input parameter count parameter to SCPIParser::TranslateParam- */
+/*								 eters() and fix method to return parameter type as P_NONE if a			*/
+/*								 trailing optional unquoted string parameter is not present in			*/
+/*								 input string. (Was returning as P_UNQ_STR of zero length.)					*/
 /**************************************************************************************/
 
 
@@ -310,9 +316,9 @@ UCHAR SCPIParser::ParseSingleCommand (char *SInpCmd, SCPI_CHAR_IDX InpCmdLen, BO
 			if (Err == SCPI_ERR_NONE)								/* If parameter counts match */
 			{
 #ifdef SUPPORT_NUM_SUFFIX
-				Err = TranslateParameters (CmdSpecNum, SInpCmdParams, InpCmdParamsLen, sParam, uiNumSuf, &NumSufIndex);
+				Err = TranslateParameters (CmdSpecNum, SInpCmdParams, InpCmdParamsLen, InpCmdParamsCnt, sParam, uiNumSuf, &NumSufIndex);
 #else
-				Err = TranslateParameters (CmdSpecNum, SInpCmdParams, InpCmdParamsLen, sParam);
+				Err = TranslateParameters (CmdSpecNum, SInpCmdParams, InpCmdParamsLen, InpCmdParamsCnt, sParam);
 #endif																				/* Translate parameters in Input Command */
 
 				if (Err == SCPI_ERR_NONE)							/* If parameters were translated ok 														*/
@@ -793,6 +799,7 @@ void SCPIParser::GetParamsInfo (char *SInpCmd, SCPI_CHAR_IDX InpCmdLen, SCPI_CHA
 /*	[in] CmdSpecNum			- Number of Command Spec to use for translation								*/
 /*	[in] SInpParams			- Pointer to first character of Input Parameters string				*/
 /*	[in] InpParamsLen		- Number of characters in Input Parameters string							*/
+/*  [in] InpParamsCnt		- Number of Input Parameters																	*/
 /*	[out] sParam				- Array [0..MAX_PARAM-1] of returned parameter structures			*/
 /*												(contents of structures is undefined if error code returned)*/
 /*  ONLY PRESENT IF SUPPORT_NUM_SUFFIX IS DEFINED:																		*/
@@ -819,10 +826,10 @@ void SCPIParser::GetParamsInfo (char *SInpCmd, SCPI_CHAR_IDX InpCmdLen, SCPI_CHA
 /**************************************************************************************/
 #ifdef SUPPORT_NUM_SUFFIX
 UCHAR SCPIParser::TranslateParameters (SCPI_CMD_NUM CmdSpecNum, char *SInpParams,
- SCPI_CHAR_IDX InpParamsLen, SCPIParam sParam[], unsigned int uiNumSuf[], UCHAR *pNumSuf)
+ SCPI_CHAR_IDX InpParamsLen, UCHAR InpParamsCnt, SCPIParam sParam[], unsigned int uiNumSuf[], UCHAR *pNumSuf)
 #else
 UCHAR SCPIParser::TranslateParameters (SCPI_CMD_NUM CmdSpecNum, char *SInpParams,
- SCPI_CHAR_IDX InpParamsLen, SCPIParam sParam[])
+ SCPI_CHAR_IDX InpParamsLen, UCHAR InpParamsCnt, SCPIParam sParam[])
 #endif
 {
 	UCHAR Err = SCPI_ERR_NONE;
@@ -1068,8 +1075,18 @@ UCHAR SCPIParser::TranslateParameters (SCPI_CMD_NUM CmdSpecNum, char *SInpParams
 					Err = TranslateNumericValueParam (&(SInpParams[ParamStart]), ParamLen, (const struct strSpecAttrNumericVal *)(psSpecParam->pAttr), &(sParam[ParamIdx]));
 					break;
 				case P_STR :
+					Err = TranslateStringParam(&(SInpParams[ParamStart]), ParamLen, psSpecParam->eType, &(sParam[ParamIdx]));
+					break;
 				case P_UNQ_STR :
-					Err = TranslateStringParam (&(SInpParams[ParamStart]), ParamLen, psSpecParam->eType, &(sParam[ParamIdx]));
+					if (ParamIdx >= InpParamsCnt)
+					{	/* Input parameters do not include trailing optional parameter of type unquoted string */
+						sParam[ParamIdx].setType(P_NONE);
+						Err = SCPI_ERR_NONE;
+					}
+					else
+					{
+						Err = TranslateStringParam (&(SInpParams[ParamStart]), ParamLen, psSpecParam->eType, &(sParam[ParamIdx]));
+					}
 					break;
 #ifdef SUPPORT_EXPR
 				case P_EXPR :

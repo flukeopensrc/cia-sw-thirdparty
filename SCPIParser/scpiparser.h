@@ -1,7 +1,7 @@
 /**************************************************************************************/
-/* Source Code Module for JPA-SCPI PARSER V1.4.0CPP (C++ version of Parser V1.3.5)		*/
+/* Source Code Module for JPA-SCPI PARSER V1.4.1-CPP (C++ version of Parser V1.3.5)		*/
 /*																																										*/
-/* (C) JPA Consulting Ltd., 2016	(www.jpacsoft.com)																	*/
+/* (C) JPA Consulting Ltd., 2019	(www.jpacsoft.com)																	*/
 /*																																										*/
 /* View this file with tab spacings set to 2																					*/
 /*																																										*/
@@ -20,12 +20,14 @@
 /* Module Revision History																														*/
 /* -----------------------																														*/
 /* V1.0.0:29/07/16:Initial Version																										*/
+/* V1.0.1:16/02/19:Add input parameter count parameter to TranslateParameters()				*/
 /**************************************************************************************/
 
 
 /* Only include this header file once */
 #ifndef SCPIPARSER_H
 #define SCPIPARSER_H
+
 
 /**************************************************************************************/
 /****************** Enumerations and Definitions used in Class ************************/
@@ -93,10 +95,10 @@ private:
 		SCPI_CHAR_IDX *pParamsLen);
 #ifdef SUPPORT_NUM_SUFFIX
 	UCHAR TranslateParameters(SCPI_CMD_NUM CmdSpecNum, char *SInpParams,
-		SCPI_CHAR_IDX InpParamsLen, SCPIParam sParam[], unsigned int uiNumSuf[], UCHAR *pNumSuf);
+		SCPI_CHAR_IDX InpParamsLen, UCHAR InpParamsCnt, SCPIParam sParam[], unsigned int uiNumSuf[], UCHAR *pNumSuf);
 #else
 	UCHAR SCPIParser::TranslateParameters(SCPI_CMD_NUM CmdSpecNum, char *SInpParams, SCPI_CHAR_IDX InpParamsLen,
-		SCPIParam sParam[]);
+		UCHAR InpParamsCnt, SCPIParam sParam[]);
 #endif
 #ifdef SUPPORT_NUM_SUFFIX
 	UCHAR TranslateCharDataParam(char *SParam, SCPI_CHAR_IDX ParLen,
