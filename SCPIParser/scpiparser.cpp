@@ -1358,7 +1358,7 @@ UCHAR SCPIParser::TranslateBooleanParam (char *SParam, SCPI_CHAR_IDX ParLen,
 				if (Err == SCPI_ERR_NONE)							/* If conversion went ok */
 				{
 					bValid = 1;													/* then the Input Parameter is a valid Boolean*/
-					if (round(fdVal))										/* If integer value is non-zero	*/
+					if (SCPIround(fdVal))										/* If integer value is non-zero	*/
 						bVal = 1;													/* then Boolean value is 1			*/
 					else
 						bVal = 0;													/* else Boolean value is 0			*/
@@ -2090,7 +2090,7 @@ BOOL StringsEqual(const char *S1, SCPI_CHAR_IDX Len1, const char *S2, SCPI_CHAR_
 /* Return Value:																																			*/
 /*	Rounded number																																		*/
 /**************************************************************************************/
-long round(double fdVal)
+long SCPIround(double fdVal)
 {
 	if (fdVal > 0)
 		fdVal += 0.5;

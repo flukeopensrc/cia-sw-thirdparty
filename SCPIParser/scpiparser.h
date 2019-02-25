@@ -152,7 +152,7 @@ private:
 UCHAR TranslateUnits(char *SUnits, SCPI_CHAR_IDX UnitsLen, const struct strSpecAttrNumericVal *pSpecAttr,
 	enum enUnits *peUnits, signed char *pUnitExp);
 BOOL StringsEqual(const char *S1, SCPI_CHAR_IDX Len1, const char *S2, SCPI_CHAR_IDX Len2);
-long round(double fdVal);
+long SCPIround(double fdVal);
 #ifdef SUPPORT_NUM_SUFFIX
 SCPI_CHAR_IDX DigitCount(unsigned int uiNum);
 char GetDigitChar(unsigned int uiNum, SCPI_CHAR_IDX Pos);
