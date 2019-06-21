@@ -12,15 +12,16 @@
 #
 #-------------------------------------------------
 
-project(jsoncpp CXX)
+project(qdecimal CXX)
 
-file(GLOB JSONCPP_FILES
-    "*.h"
-    "*.cpp"
+file(GLOB QDECIMAL_FILES
+    "src/*.h"
+    "src/*.cpp"
 )
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
 
-add_library(jsoncpp STATIC ${JSONCPP_FILES})
+add_library(qdecimal STATIC ${QDECIMAL_FILES})
+
