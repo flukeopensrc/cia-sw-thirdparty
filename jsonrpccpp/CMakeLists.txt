@@ -19,8 +19,12 @@ file(GLOB JSONRPCCPP_FILES
     "common/*.cpp"
     "client/*.h"
     "client/*.cpp"
+    "client/connectors/linuxtcpsocketclient.h"
+    "client/connectors/linuxtcpsocketclient.cpp"
     "server/*.h"
     "server/*.cpp"
+    "server/connectors/linuxtcpsocketserver.h"
+    "server/connectors/linuxtcpsocketserver.cpp"
 )
 
 include_directories(
