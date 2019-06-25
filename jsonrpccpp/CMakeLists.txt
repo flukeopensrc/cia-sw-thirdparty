@@ -35,8 +35,8 @@ add_library(jsonrpccpp STATIC ${JSONRPCCPP_FILES})
 
 set_target_properties(jsonrpccpp
     PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${CIA_DIR}/build/thirdparty/${BUILD_SYSTEM_TYPE}"
-    LIBRARY_OUTPUT_DIRECTORY "${CIA_DIR}/build/thirdparty/${BUILD_SYSTEM_TYPE}"
-    RUNTIME_OUTPUT_DIRECTORY "${CIA_DIR}/build/thirdparty/${BUILD_SYSTEM_TYPE}"
+    ARCHIVE_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
+    LIBRARY_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
+    RUNTIME_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     OUTPUT_NAME jsonrpccpp
 )
