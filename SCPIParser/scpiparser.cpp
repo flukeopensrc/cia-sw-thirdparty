@@ -36,6 +36,7 @@
 #include "scpiparser.h"
 #include "scpipriv.h"
 
+#include <cstdio>
 
 /**************************************************************************************/
 /*********************** Constants used in this module ********************************/
@@ -1088,6 +1089,12 @@ UCHAR SCPIParser::TranslateParameters (SCPI_CMD_NUM CmdSpecNum, char *SInpParams
 						Err = TranslateStringParam (&(SInpParams[ParamStart]), ParamLen, psSpecParam->eType, &(sParam[ParamIdx]));
 					}
 					break;
+					
+
+                case P_ARBITRARY_BLOCK :
+                    Err = TranslateArbitaryBlockParam(&(SInpParams[ParamStart]), ParamLen, &(sParam[ParamIdx]));
+                    break;					
+					
 #ifdef SUPPORT_EXPR
 				case P_EXPR :
 					Err = TranslateExpressionParam (&(SInpParams[ParamStart]), ParamLen, &(sParam[ParamIdx]));
@@ -1246,6 +1253,11 @@ UCHAR SCPIParser::TranslateCharDataParam (char *SParam, SCPI_CHAR_IDX ParLen,
 				case P_UNQ_STR :
 					Err = TranslateStringParam (SParam, ParLen, eAlt, psParam);
 					break;
+
+                case P_ARBITRARY_BLOCK:
+                    Err = TranslateArbitaryBlockParam(SParam, ParLen, psParam);
+                    break;					
+					
 #ifdef SUPPORT_EXPR
 				case P_EXPR :
 					Err = TranslateExpressionParam (SParam, ParLen, psParam);
@@ -1530,6 +1542,125 @@ UCHAR SCPIParser::TranslateStringParam (char *SParam, SCPI_CHAR_IDX ParLen, cons
 
 	return Err;
 }
+
+
+
+
+
+/**********************************************************************************/
+/* Translates an Input Parameter string into a arbitrary block parameter.         */
+/*                                                                                */
+/* Parameters:                                                                    */
+/*    [in]  SParam        - Pointer to start of Input Parameter string            */
+/*    [in]  ParLen        - Length of Input Parameter string                      */
+/*    [out] psParam       - Pointer to returned parameter structure               */
+/*                          (contents are undefined if an error code is returned) */
+/*                                                                                */
+/* Return Values:                                                                 */
+/*    SCPI_ERR_NONE       - OK:    Translation succeeded                          */
+/*    SCPI_ERR_PARAM_TYPE - Error: The Input Parameter was the wrong type for the */
+/*                                 type of parameter requested                    */
+/**********************************************************************************/
+UCHAR SCPIParser::TranslateArbitaryBlockParam(char* SParam, SCPI_CHAR_IDX ParLen, SCPIParam* psParam)
+{
+    UCHAR Err = SCPI_ERR_PARAM_TYPE;
+
+    uint8_t *pParameters = reinterpret_cast<uint8_t*>(SParam);
+
+    SCPI_CHAR_IDX minimumParameterListSize = 2;
+    bool indefinite = false;
+
+    char Delimiter = 0;    
+    unsigned int byteCount = 0;    
+    
+    if ((ParLen >= minimumParameterListSize) && ((*pParameters == '#') || (*pParameters == '"')))
+    {
+        /* Populate returned parameter structure */
+	    psParam->setType(P_ARBITRARY_BLOCK);
+
+        if (*pParameters == DOUBLE_QUOTE)
+        {
+            Delimiter = DOUBLE_QUOTE;
+            ++pParameters;  
+            byteCount = ParLen - 2;         
+        }
+        else
+        {
+            ++pParameters;
+
+            char countDigit = *pParameters;
+            if ((countDigit >= '0') && (countDigit <= '9'))
+            {
+                ++pParameters;
+
+                uint8_t digits = 0;
+            
+                if (countDigit == '0')
+                {
+                    indefinite = true;                
+                }
+                else
+                {
+                    digits = countDigit - '0';  
+                }
+            
+                minimumParameterListSize += digits;
+
+                if (ParLen >= minimumParameterListSize)
+                {               
+                    if (!indefinite)
+                    {
+                        do
+                        {
+                            char digitCharacter = *pParameters++;
+
+                            if ((digitCharacter >= '0') && (digitCharacter <= '9'))
+                            {
+                                char digit = digitCharacter - '0';
+
+                                if (!AppendToUInt(&byteCount, digit))
+                                {
+                                    /* If not possible to append digit, return an overflow error */
+                                    return SCPI_ERR_PARAM_OVERFLOW;
+                                }
+                            }
+                            else
+                            {
+                                return SCPI_ERR_INVALID_VALUE;
+                            }
+
+                            --digits;
+                        }
+                        while (digits > 0);
+                    }
+                    else
+                    {
+                        byteCount = ParLen - 2;         // #0hello world .... the # and 0 makes 2    
+                    }
+
+                    minimumParameterListSize += byteCount;
+                }
+            }
+        }
+                              
+        if (ParLen >= minimumParameterListSize)
+        {
+            /* Set pointer to start of parameter */
+            psParam->setString(reinterpret_cast<char*>(pParameters));
+
+            /* Set length to length of parameter */
+            psParam->setStringLen(static_cast<uint16_t>(byteCount));
+
+            /* Clear delimiter - not applicable  */
+            psParam->setStringDelimiter(Delimiter);
+            Err = SCPI_ERR_NONE;
+        }
+    }
+
+    return Err;
+}
+
+
 
 
 #ifdef SUPPORT_EXPR

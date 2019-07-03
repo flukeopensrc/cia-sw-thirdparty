@@ -109,6 +109,9 @@ private:
 	UCHAR TranslateBooleanParam(char *SParam, SCPI_CHAR_IDX ParLen, const struct strSpecAttrBoolean *psSpecAttr, SCPIParam *psParam);
 	UCHAR TranslateNumericValueParam(char *SParam, SCPI_CHAR_IDX ParLen, const struct strSpecAttrNumericVal *psSpecAttr, SCPIParam *psParam);
 	UCHAR TranslateStringParam(char *SParam, SCPI_CHAR_IDX ParLen, const enum enParamType ePType, SCPIParam *psParam);
+
+    UCHAR TranslateArbitaryBlockParam(char* SParam, SCPI_CHAR_IDX ParLen, SCPIParam *psParam);	
+	
 #ifdef SUPPORT_EXPR
 	UCHAR TranslateExpressionParam(char *SParam, SCPI_CHAR_IDX ParLen, SCPIParam *psParam);
 #endif

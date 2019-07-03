@@ -27,6 +27,7 @@
 #ifndef SCPIPARAM_H
 #define SCPIPARAM_H
 
+#include <cstdint>
 
 /**************************************************************************************/
 /****************** Enumerations and Definitions used in Class ************************/
@@ -117,6 +118,9 @@ public:
 	UCHAR SCPI_ToLong(long *plVal);
 	UCHAR SCPI_ToDouble(double *pfdVal);
 	UCHAR SCPI_ToString(char **pSString, SCPI_CHAR_IDX *pLen, char *pDelimiter);
+
+	UCHAR SCPI_ToArbitraryBlock(uint8_t** ppBlock, SCPI_CHAR_IDX *pLen);	
+	
 #ifdef SUPPORT_NUM_LIST
 	UCHAR SCPI_GetNumListEntry(UCHAR Index, BOOL *pbRange, SCPIParam *psFirst, SCPIParam *psLast);
 #endif

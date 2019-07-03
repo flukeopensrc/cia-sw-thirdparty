@@ -367,6 +367,38 @@ UCHAR SCPIParam::SCPI_ToString(char **pSString, SCPI_CHAR_IDX *pLen, char *pDeli
 }
 
 
+/*********************************************************************************************************/
+/* Converts a parameter of type "Arbituary Block".                                                       */
+/*                                                                                                       */
+/* Parameters:                                                                                           */ 
+/*    [out] ppBlock - Returned pointer to an array of bytes containing the returned data.                */
+/*                    The array of bytes is always within the Input Buffer that contained the Input      */
+/*                    Parameter, and so the Input Buffer must still be valid when calling this function. */
+/*    [out] pLen -    Pointer to number of characters that within returned buffer.                       */
+/*                                                                                                       */
+/* Return Code:                                                                                          */
+/*    SCPI_ERR_NONE       - OK                                                                           */
+/*    SCPI_ERR_PARAM_TYPE - Error: Parameter was not type Unquoted String                                */
+/*********************************************************************************************************/
+UCHAR SCPIParam::SCPI_ToArbitraryBlock(uint8_t** ppBlock, SCPI_CHAR_IDX *pLen)
+{
+
+    /* If parameter is not type String or Unquoted String */
+    if (eType != P_ARBITRARY_BLOCK)
+    {
+        return SCPI_ERR_PARAM_TYPE;
+    }
+
+    *ppBlock = reinterpret_cast<uint8_t*>(unAttr.sString.pSString);
+    *pLen = unAttr.sString.Len;
+
+    return SCPI_ERR_NONE;    
+}
+
+
+
+
+
 #ifdef SUPPORT_NUM_LIST
 /**************************************************************************************/
 /* Retrieves an entry from Numeric List parameter.																		*/
