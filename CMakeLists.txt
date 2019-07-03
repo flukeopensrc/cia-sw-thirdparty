@@ -12,23 +12,8 @@
 #
 #-------------------------------------------------
 
-project(jsoncpp CXX)
+add_subdirectory(jsoncpp)
+add_subdirectory(jsonrpccpp)
+#add_subdirectory(qdecimal)
+#add_subdirectory(usbtmc)
 
-file(GLOB JSONCPP_FILES
-    "*.h"
-    "*.cpp"
-)
-
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/..
-)
-
-add_library(jsoncpp STATIC ${JSONCPP_FILES})
-
-set_target_properties(jsoncpp
-    PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
-    LIBRARY_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
-    RUNTIME_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
-    OUTPUT_NAME jsoncpp
-)
