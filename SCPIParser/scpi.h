@@ -99,6 +99,7 @@ enum enParamType
 	P_CH_DAT,																		/* Character Data 	*/
 	P_STR,																			/* String 					*/
 	P_UNQ_STR,																	/* Unquoted String 	*/
+	P_ARBITRARY_BLOCK,                                                             /* Arbitrary Block */
 	P_EXPR,																			/* Expression 			*/
 	P_NUM_LIST,																	/* Numeric List			*/
 	P_CHAN_LIST																	/* Channel List			*/
