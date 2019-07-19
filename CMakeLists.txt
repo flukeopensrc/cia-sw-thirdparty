@@ -14,6 +14,6 @@
 
 add_subdirectory(jsoncpp)
 add_subdirectory(jsonrpccpp)
+add_subdirectory(usbtmc)
 #add_subdirectory(qdecimal)
-#add_subdirectory(usbtmc)
 

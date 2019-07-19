@@ -19,7 +19,9 @@ file(GLOB USBTMC_CIA_FILES
     "*.c"
 )
 
-add_library(ciausbtmc STATIC ${REMOTE_CIA_FILES})
+add_library(ciausbtmc STATIC ${USBTMC_CIA_FILES})
+
+set_target_properties(ciausbtmc PROPERTIES LINKER_LANGUAGE CXX)
 
 set_target_properties(ciausbtmc
     PROPERTIES
@@ -28,5 +30,3 @@ set_target_properties(ciausbtmc
     RUNTIME_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/og"
     OUTPUT_NAME usbtmc
 )
-
-set_target_properties(ciausbtmc PROPERTIES LINKER_LANGUAGE CXX)
