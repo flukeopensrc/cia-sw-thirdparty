@@ -27,11 +27,11 @@ file(GLOB JSONRPCCPP_FILES
     "server/connectors/linuxtcpsocketserver.cpp"
 )
 
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/..
-)
-
 add_library(jsonrpccpp STATIC ${JSONRPCCPP_FILES})
+
+target_include_directories(jsonrpccpp PRIVATE
+    ${CIA_DIR}/thirdparty
+)
 
 set_target_properties(jsonrpccpp
     PROPERTIES

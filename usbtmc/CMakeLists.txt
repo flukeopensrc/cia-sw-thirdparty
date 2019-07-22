@@ -21,6 +21,13 @@ file(GLOB USBTMC_CIA_FILES
 
 add_library(ciausbtmc STATIC ${USBTMC_CIA_FILES})
 
+target_include_directories(ciausbtmc PRIVATE
+#    ${CIA_DIR}/src
+#    ${CIA_DIR}/src/ogsrc
+#    ${CIA_DIR}/src/shared
+#    ${CIA_DIR}/src/thridparty
+)
+
 set_target_properties(ciausbtmc PROPERTIES LINKER_LANGUAGE CXX)
 
 set_target_properties(ciausbtmc

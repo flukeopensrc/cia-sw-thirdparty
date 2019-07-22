@@ -19,11 +19,11 @@ file(GLOB JSONCPP_FILES
     "*.cpp"
 )
 
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/..
-)
-
 add_library(jsoncpp STATIC ${JSONCPP_FILES})
+
+target_include_directories(jsoncpp PRIVATE
+    ${CIA_DIR}/thirdparty
+)
 
 set_target_properties(jsoncpp
     PROPERTIES
