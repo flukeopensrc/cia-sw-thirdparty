@@ -20,7 +20,7 @@ namespace jsonrpc
     {
         public:
             AbstractServerConnector();
-            virtual ~AbstractServerConnector();
+            virtual ~AbstractServerConnector() = default;
 
             /**
              * This method should signal the Connector to start waiting for requests, in any way that is appropriate for the derived connector class.
@@ -39,7 +39,7 @@ namespace jsonrpc
              * @param addInfo - additional Info, that the Connector might need for responding.
              * @return returns true on success, false otherwise
              */
-            bool virtual SendResponse(const std::string& response, void* addInfo = NULL) = 0;
+            virtual bool SendResponse(const std::string& response, void* addInfo = NULL) = 0;
 
             /**
              * This method must be called, when a request is recognised. It will do everything else for you (including sending the response).

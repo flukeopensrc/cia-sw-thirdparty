@@ -36,19 +36,19 @@ namespace jsonrpc
        * This method launches the listening loop that will handle client connections.
        * @return true if the file is readable, false otherwise.
        */
-      bool StartListening();
+      virtual bool StartListening() override;
       /**
        * This method stops the listening loop that will handle client connections.
        * @return True if successful, false otherwise of if not listening.
        */
-      bool StopListening();
+      virtual bool StopListening() override;
       /**
        * This method sends the result of the RPC Call over the output file
        * @param response The response to send to the client
        * @param addInfo Additionnal parameters
        * @return A boolean that indicates the success or the failure of the operation.
        */
-      bool SendResponse(const std::string& response, void* addInfo = NULL);
+      virtual bool SendResponse(const std::string& response, void* addInfo = NULL) override;
 
       /**
        * This method blocks the caller as long as the server is listening to its input.

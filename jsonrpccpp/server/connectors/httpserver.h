@@ -49,12 +49,11 @@ namespace jsonrpc
              */
             HttpServer(int port, const std::string& sslcert = "", const std::string& sslkey = "", int threads = 50);
 
-            virtual bool StartListening();
-            virtual bool StopListening();
+            virtual bool StartListening() override;
+            virtual bool StopListening() override;
 
-            bool virtual SendResponse(const std::string& response,
-                    void* addInfo = NULL);
-            bool virtual SendOptionsResponse(void* addInfo);
+            virtual bool SendResponse(const std::string& response, void* addInfo = NULL) override;
+            virtual bool SendOptionsResponse(void* addInfo);
 
             void SetUrlHandler(const std::string &url, IClientConnectionHandler *handler);
 

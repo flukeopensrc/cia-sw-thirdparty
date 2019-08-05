@@ -41,7 +41,7 @@ namespace jsonrpc
             /**
              * @brief ~LinuxTcpSocketServer, the destructor of LinuxTcpSocketServer
              */
-            virtual ~LinuxTcpSocketServer();
+            virtual ~LinuxTcpSocketServer() override;
                         /**
                          * @brief The real implementation TcpSocketServer::StartListening method.
                          * 
@@ -53,7 +53,7 @@ namespace jsonrpc
                          * 
                          * @return A boolean that indicates the success or the failure of the operation.
                          */
-			bool StartListening();
+            virtual bool StartListening() override;
                         /**
                          * @brief The real implementation TcpSocketServer::StopListening method.
                          * 
@@ -64,7 +64,7 @@ namespace jsonrpc
                          * 
                          * @return A boolean that indicates the success or the failure of the operation.
                          */
-			bool StopListening();
+            virtual bool StopListening() override;
 
                         /**
                          * @brief The real implementation TcpSocketServer::SendResponse method.
@@ -74,7 +74,7 @@ namespace jsonrpc
                          * @param addInfo Additionnal parameters (mainly client socket file descriptor)
                          * @return A boolean that indicates the success or the failure of the operation.
                          */
-			bool SendResponse(const std::string& response, void* addInfo = NULL);
+            virtual bool SendResponse(const std::string& response, void* addInfo = NULL) override;
 
 		private:
 			bool running;                   /*!< A boolean that is used to know the listening state*/
