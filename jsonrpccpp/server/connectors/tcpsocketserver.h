@@ -36,7 +36,7 @@ namespace jsonrpc
 			/**
                          * @brief ~TcpSocketServer, the destructor of TcpSocketServer
                          */
-            virtual ~TcpSocketServer() override;
+			~TcpSocketServer();
                         /**
                          * @brief The AbstractServerConnector::StartListening method overload.
                          * 
@@ -48,7 +48,7 @@ namespace jsonrpc
                          * 
                          * @return A boolean that indicates the success or the failure of the operation.
                          */
-            virtual bool StartListening() override;
+			bool StartListening();
                         /**
                          * @brief The AbstractServerConnector::StopListening method overload.
                          * 
@@ -59,7 +59,7 @@ namespace jsonrpc
                          * 
                          * @return A boolean that indicates the success or the failure of the operation.
                          */
-            virtual bool StopListening() override;
+			bool StopListening();
                         
                         /**
                          * @brief The AbstractServerConnector::SendResponse method overload.
@@ -69,7 +69,7 @@ namespace jsonrpc
                          * @param addInfo Additionnal parameters (mainly client socket file descriptor)
                          * @return A boolean that indicates the success or the failure of the operation.
                          */
-            virtual bool SendResponse(const std::string& response, void* addInfo = NULL) override;
+			bool SendResponse(const std::string& response, void* addInfo = NULL);
 
 		private:
             AbstractServerConnector *realSocket; /*!< A pointer to the real implementation of this class depending of running OS*/

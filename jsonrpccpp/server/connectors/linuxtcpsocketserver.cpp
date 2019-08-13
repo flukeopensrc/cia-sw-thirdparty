@@ -138,7 +138,7 @@ bool LinuxTcpSocketServer::SendResponse(const string& response, void* addInfo)
 void* LinuxTcpSocketServer::LaunchLoop(void *p_data)
 {
 	pthread_detach(pthread_self());
-    LinuxTcpSocketServer *instance = reinterpret_cast<LinuxTcpSocketServer*>(p_data);
+	LinuxTcpSocketServer *instance = reinterpret_cast<LinuxTcpSocketServer*>(p_data);;
 	instance->ListenLoop();
 	return NULL;
 }
@@ -176,29 +176,29 @@ void LinuxTcpSocketServer::ListenLoop()
 void* LinuxTcpSocketServer::GenerateResponse(void *p_data)
 {
 	pthread_detach(pthread_self());
-    struct GenerateResponseParameters* params = reinterpret_cast<struct GenerateResponseParameters*>(p_data);
-    LinuxTcpSocketServer *instance = params->instance;
-    int connection_fd = params->connection_fd;
-    delete params;
-    params = NULL;
-    int nbytes;
-    char buffer[BUFFER_SIZE];
-    string request;
-    do
-    { //The client sends its json formatted request and a delimiter request.
-        nbytes = recv(connection_fd, buffer, BUFFER_SIZE, 0);
-        if(nbytes == -1)
-        {
-            instance->CleanClose(connection_fd);
-            return NULL;
-        }
-        else
-        {
-            request.append(buffer,nbytes);
-        }
-    } while(request.find(DELIMITER_CHAR) == string::npos);
-    instance->OnRequest(request, reinterpret_cast<void*>(connection_fd));
-    return NULL;
+	struct GenerateResponseParameters* params = reinterpret_cast<struct GenerateResponseParameters*>(p_data);
+	LinuxTcpSocketServer *instance = params->instance;
+	int connection_fd = params->connection_fd;
+	delete params;
+	params = NULL;
+	int nbytes;
+	char buffer[BUFFER_SIZE];
+	string request;
+	do
+	{ //The client sends its json formatted request and a delimiter request.
+		nbytes = recv(connection_fd, buffer, BUFFER_SIZE, 0);
+		if(nbytes == -1)
+		{
+			instance->CleanClose(connection_fd);
+			return NULL;
+		}
+		else
+		{
+			request.append(buffer,nbytes);
+		}
+	} while(request.find(DELIMITER_CHAR) == string::npos);
+	instance->OnRequest(request, reinterpret_cast<void*>(connection_fd));
+	return NULL;
 }
 
 

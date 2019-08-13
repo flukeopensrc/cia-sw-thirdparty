@@ -35,10 +35,10 @@ namespace jsonrpc
 			 */
 			UnixDomainSocketServer(const std::string& socket_path);
 
-            virtual bool StartListening() override;
-            virtual bool StopListening() override;
+			virtual bool StartListening();
+			virtual bool StopListening();
 
-            virtual bool SendResponse(const std::string& response, void* addInfo = NULL) override;
+			bool virtual SendResponse(const std::string& response, void* addInfo = NULL);
 
 		private:
 			bool running;
