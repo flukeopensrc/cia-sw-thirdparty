@@ -19,13 +19,15 @@ file(GLOB JSONRPCCPP_FILES
     "common/*.cpp"
     "client/*.h"
     "client/*.cpp"
-    "client/connectors/linuxtcpsocketclient.h"
-    "client/connectors/linuxtcpsocketclient.cpp"
+    "client/connectors/*.h"
+    "client/connectors/*.cpp"
     "server/*.h"
     "server/*.cpp"
-    "server/connectors/linuxtcpsocketserver.h"
-    "server/connectors/linuxtcpsocketserver.cpp"
+    "server/connectors/*.h"
+    "server/connectors/*.cpp"
 )
+
+list(FILTER JSONRPCCPP_FILES EXCLUDE REGEX ".*windows.*$")
 
 add_library(jsonrpccpp STATIC ${JSONRPCCPP_FILES})
 
