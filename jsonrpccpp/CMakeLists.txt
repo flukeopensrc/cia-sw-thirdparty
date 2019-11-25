@@ -19,31 +19,13 @@ file(GLOB JSONRPCCPP_FILES
     "common/*.cpp"
     "client/*.h"
     "client/*.cpp"
-    "client/connectors/filedescriptorclient.h"
-    "client/connectors/filedescriptorclient.cpp"
-    "client/connectors/tcpsocketclient.h"
-    "client/connectors/tcpsocketclient.cpp"
-    "client/connectors/unixdomainsocketclient.h"
-    "client/connectors/unixdomainsocketclient.cpp"
-    "client/connectors/linuxtcpsocketclient.h"
-    "client/connectors/linuxtcpsocketclient.cpp"
-    "client/connectors/tcpsocketclientprivate.h"
     "client/connectors/tcpsocketclient.h"
     "client/connectors/tcpsocketclient.cpp"
     "server/*.h"
     "server/*.cpp"   
-    "server/connectors/filedescriptorserver.cpp"
-    "server/connectors/filedescriptorserver.h"
     "server/connectors/linuxtcpsocketserver.cpp"
     "server/connectors/linuxtcpsocketserver.h"
-    "server/connectors/tcpsocketserver.cpp"
-    "server/connectors/tcpsocketserver.h"
-    "server/connectors/unixdomainsocketserver.cpp"
-    "server/connectors/unixdomainsocketserver.h"
 )
-
-list(FILTER JSONRPCCPP_FILES EXCLUDE REGEX ".*windows.*$")
-list(FILTER JSONRPCCPP_FILES EXCLUDE REGEX ".*httpserver.*$")
 
 add_library(jsonrpccpp STATIC ${JSONRPCCPP_FILES})
 
