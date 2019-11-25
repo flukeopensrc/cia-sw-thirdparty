@@ -28,6 +28,7 @@ file(GLOB JSONRPCCPP_FILES
 )
 
 list(FILTER JSONRPCCPP_FILES EXCLUDE REGEX ".*windows.*$")
+list(FILTER JSONRPCCPP_FILES EXCLUDE REGEX ".*httpserver.*$")
 
 add_library(jsonrpccpp STATIC ${JSONRPCCPP_FILES})
 
