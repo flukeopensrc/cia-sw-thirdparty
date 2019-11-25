@@ -43,7 +43,7 @@ void FileDescriptorClient::SendRPCMessage(const std::string& message,
   string toSend = message;
   do
   {
-    ssize_t byteWritten = write(outputfd, toSend.c_str(), min(toSend.size(), static_cast<size_t>(MAX_WRITE_SIZE)));
+    ssize_t byteWritten = write(outputfd, toSend.c_str(), min(toSend.size(), MAX_WRITE_SIZE));
     if (byteWritten < 1)
       throw JsonRpcException(Errors::ERROR_CLIENT_CONNECTOR,
         "Unknown error occured while writing to the output file descriptor");
