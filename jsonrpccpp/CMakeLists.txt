@@ -18,13 +18,13 @@ file(GLOB JSONRPCCPP_FILES
     "common/*.h"
     "common/*.cpp"
     "client/*.h"
-    "client/*.cpp"
+    "client/*.cpp"  
     "client/connectors/linuxtcpsocketclient.h"
     "client/connectors/linuxtcpsocketclient.cpp"
     "server/*.h"
     "server/*.cpp"   
-    "server/connectors/linuxtcpsocketserver.cpp"
     "server/connectors/linuxtcpsocketserver.h"
+    "server/connectors/linuxtcpsocketserver.cpp"
 )
 
 add_library(jsonrpccpp STATIC ${JSONRPCCPP_FILES})
