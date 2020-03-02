@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2010 Tektronix, Inc.
- * 
+ *
  * Author: Mike Brant <michael.s.brant@tektronix.com>
  *
  * All Rights Reserved.
@@ -35,11 +35,11 @@ extern "C" {
 #define BOOL        unsigned char
 #endif
 
-#ifndef TRUE 
+#ifndef TRUE
 #define TRUE    1
 #endif
 
-#ifndef FALSE 
+#ifndef FALSE
 #define FALSE   0
 #endif
 
@@ -121,13 +121,13 @@ typedef enum
     USBTMC488_MSG_UPDATE_STATUS_BYTE        = 5,
     USBTMC488_MSG_REQUEST_SERVICE           = 6,
     USBTMC488_MSG_REN_ENABLE                = 7,
-    USBTMC488_MSG_REN_DISABLE               = 8,    
-    USBTMC488_MSG_GOTO_LOCAL                = 9,    
+    USBTMC488_MSG_REN_DISABLE               = 8,
+    USBTMC488_MSG_GOTO_LOCAL                = 9,
     USBTMC488_MSG_CANCEL_IO                 = 10,
     USBTMC488_MSG_DEVICE_CLEAR_DONE         = 11,
     USBTMC488_MSG_FREE_REQUEST_MSG          = 12,
     USBTMC488_MSG_GOTO_LOCAL_LOCKOUT        = 13,
-    USBTMC488_MSG_UPDATE_LOCAL_STATUS_BYTE  = 14,    
+    USBTMC488_MSG_UPDATE_LOCAL_STATUS_BYTE  = 14,
     USBTMC488_NUM_MSG_TYPES                 = 15
 } USBTMC488_MSG_TYPE;
 
@@ -175,7 +175,7 @@ extern BOOL usbtmc488_interface_enabled( void );
  *        provided in the "value" field of the USBTMC488_MESSAGE and the
  *        "msg_buffer" field should be NULL.
  *     4. Cancel I/O. Any pending output is canceled, internal driver queues
- *        are flushed. The USBTMC488_MESSAGE "type" field is set to 
+ *        are flushed. The USBTMC488_MESSAGE "type" field is set to
  *        USBTMC488_MSG_CANCEL_IO, the "length" and "value" fields are expected
  *        to be 0 and the "msg_buffer" field should be NULL.
  *     5. Informing driver that device clear processing is complete. The
