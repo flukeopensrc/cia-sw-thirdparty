@@ -40,6 +40,9 @@ CONFIG += warn_off
 CONFIG += c++11
 # But instead I do this:
 #QMAKE_CXXFLAGS += -std=c++11
+QMAKE_CXXFLAGS += -Wno-unused-variable
+QMAKE_CXXFLAGS += -Wno-psabi
+QMAKE_CXXFLAGS += -Werror
 
 # Where generated intermediate files go.
 #OBJECTS_DIR = obj
