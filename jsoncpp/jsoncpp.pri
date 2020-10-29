@@ -60,6 +60,9 @@ UI_DIR = qt
 # Turn on warnings, but unused parameters are OK with me sometimes.
 CONFIG += warn_on
 QMAKE_CXXFLAGS += -Wno-unused-parameter
+QMAKE_CXXFLAGS += -Wno-unused-variable
+QMAKE_CXXFLAGS += -Wno-psabi
+QMAKE_CXXFLAGS += -Werror
 
 # The qmake on my host machine is old. Otherwise, I could add c++11 to CONFIG like this:
 CONFIG += c++11

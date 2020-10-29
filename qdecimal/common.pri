@@ -28,3 +28,6 @@ else {
  OBJECTS_DIR = obj
 }
 
+QMAKE_CXXFLAGS += -Wno-unused-variable
+QMAKE_CXXFLAGS += -Wno-psabi
+QMAKE_CXXFLAGS += -Werror
