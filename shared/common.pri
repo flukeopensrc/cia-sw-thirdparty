@@ -27,7 +27,7 @@ isEmpty(BUILDPATH) {
 }
 
 # Where third party include files are.
-THIRDPARTYPATH = ../../../thirdparty
+THIRDPARTYPATH = ../../../cia-sw-thirdparty
 
 # Where the built library goes.
 DESTDIR = $$OUT_PWD/$$BUILDPATH/$$TARGET_SUBDIR/lib
