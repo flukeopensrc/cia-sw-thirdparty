@@ -1,0 +1,85 @@
+# Unless otherwise specified (below), assume all files are text and use
+# the default autocrlf strategy (determined by git).
+* text=auto
+
+# Unix-format scripts
+*.sh eol=lf
+
+# Windows-format scripts
+*.bat eol=crlf
+*.BAT eol=crlf
+*.cmd eol=crlf
+*.CMD eol=crlf
+
+# Binary files (or non-binary files we don't want to merge).
+#
+# This list was determined by scanning all file extensions
+# in the CIA and NIGHTHAWK repos that were under revision
+# control as of 20201120 and examining their file type.
+#
+# However, instead of explicitly listing them as binary,
+# I've chosen to let git auto-detect the binary files
+# (since some extensions are mixed).  I've left this
+# here for historical record and in case we find--going
+# forward--that we need to explicitly specify an extension
+# which git doesn't autodetect--or which git determines is
+# text, but we don't want it handled as text.
+#
+# *.a binary
+# *.bin binary
+# *.bmp binary
+# *.browse binary
+# *.d43 binary
+# *.dat binary
+# *.dbs binary
+# *.ddb binary
+# *.dll binary
+# *.doc binary
+# *.docx binary
+# *.dtb binary
+# *.exe binary
+# *.gif binary
+# *.hex binary
+# *.hexout binary
+# *.hiof binary
+# *.ico binary
+# *.img binary
+# *.jbc binary
+# *.jpg binary
+# *.lib binary
+# *.map binary
+# *.o binary
+# *.ocp binary
+# *.odt binary
+# *.pbd binary
+# *.pbi binary
+# *.pdf binary
+# *.png binary
+# *.pnm binary
+# *.pof binary
+# *.ppm binary
+# *.prw binary
+# *.psm binary
+# *.qar binary
+# *.qdb binary
+# *.qm binary
+# *.qmlc binary
+# *.qpg binary
+# *.qtl binary
+# *.r43 binary
+# *.rbf binary
+# *.smsg binary
+# *.so binary
+# *.sof binary
+# *.sv binary
+# *.svg binary
+# *.swp binary
+# *.tiff binary
+# *.ttf binary
+# *.v binary
+# *.vcd binary
+# *.vhd* binary
+# *.wlf binary
+# *.xls binary
+# *.xlsx binary
+# *.xlsx binary
