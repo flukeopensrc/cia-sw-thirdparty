@@ -11,6 +11,9 @@
 *.cmd eol=crlf
 *.CMD eol=crlf
 
+# JSON files
+*.json eol=lf
+
 # Binary files (or non-binary files we don't want to merge).
 #
 # This list was determined by scanning all file extensions
