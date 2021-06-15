@@ -19,7 +19,7 @@ file(GLOB JSONCPP_FILES
     "*.cpp"
 )
 
-add_library(jsoncpp STATIC ${JSONCPP_FILES})
+add_library(jsoncpp ${JSONCPP_FILES})
 
 target_include_directories(jsoncpp PRIVATE
     ${CIA_DIR}/thirdparty

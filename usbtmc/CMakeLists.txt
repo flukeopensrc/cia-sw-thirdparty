@@ -21,7 +21,7 @@ file(GLOB USBTMC_CIA_FILES
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-add_library(usbtmc STATIC ${USBTMC_CIA_FILES})
+add_library(usbtmc ${USBTMC_CIA_FILES})
 
 target_include_directories(usbtmc PRIVATE
 #    ${CIA_DIR}/src

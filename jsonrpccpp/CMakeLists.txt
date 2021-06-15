@@ -27,7 +27,7 @@ file(GLOB JSONRPCCPP_FILES
     "server/connectors/linuxtcpsocketserver.cpp"
 )
 
-add_library(jsonrpccpp STATIC ${JSONRPCCPP_FILES})
+add_library(jsonrpccpp ${JSONRPCCPP_FILES})
 
 target_include_directories(jsonrpccpp PRIVATE
     ${CIA_DIR}/thirdparty
