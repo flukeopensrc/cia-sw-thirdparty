@@ -14,6 +14,10 @@
 
 project(jsoncpp CXX)
 
+file(GLOB JSONCPP_PUBLIC_HEADERS
+    "json/*.h"
+)
+
 file(GLOB JSONCPP_FILES
     "*.h"
     "*.cpp"
@@ -31,4 +35,14 @@ set_target_properties(jsoncpp
     LIBRARY_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     RUNTIME_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     OUTPUT_NAME jsoncpp
+    PUBLIC_HEADER "${JSONCPP_PUBLIC_HEADERS}"
+)
+
+install(TARGETS jsoncpp
+    LIBRARY 
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    ARCHIVE
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    PUBLIC_HEADER
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/json/"
 )

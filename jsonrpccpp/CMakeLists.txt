@@ -14,6 +14,18 @@
 
 project(jsonrpccpp CXX)
 
+file(GLOB JSONRPCCPP_TOPLEVEL_HEADERS
+    "*.h"
+)
+file(GLOB JSONRPCCPP_COMMON_HEADERS
+    "common/*.h"
+)
+file(GLOB JSONRPCCPP_CLIENT_HEADERS
+    "client/*.h"
+)
+file(GLOB JSONRPCCPP_SERVER_HEADERS
+    "server/*.h"
+)
 file(GLOB JSONRPCCPP_FILES
     "common/*.h"
     "common/*.cpp"
@@ -39,4 +51,27 @@ set_target_properties(jsonrpccpp
     LIBRARY_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     RUNTIME_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     OUTPUT_NAME jsonrpccpp
+)
+
+install(TARGETS jsonrpccpp
+    LIBRARY 
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    ARCHIVE
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+)
+install(FILES
+    ${JSONRPCCPP_TOPLEVEL_HEADERS}
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsonrpccpp/"
+)
+install(FILES
+    ${JSONRPCCPP_COMMON_HEADERS}
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsonrpccpp/common"
+)
+install(FILES
+    ${JSONRPCCPP_CLIENT_HEADERS}
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsonrpccpp/client"
+)
+install(FILES
+    ${JSONRPCCPP_SERVER_HEADERS}
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsonrpccpp/server"
 )
