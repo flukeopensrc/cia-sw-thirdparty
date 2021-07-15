@@ -50,6 +50,7 @@ set_target_properties(jsonrpccpp
     ARCHIVE_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     LIBRARY_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     RUNTIME_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
+    SOVERSION 0.0.0
     OUTPUT_NAME jsonrpccpp
 )
 

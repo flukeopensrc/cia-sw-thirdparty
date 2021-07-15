@@ -34,6 +34,7 @@ set_target_properties(jsoncpp
     ARCHIVE_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     LIBRARY_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     RUNTIME_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
+    SOVERSION 0.0.0
     OUTPUT_NAME jsoncpp
     PUBLIC_HEADER "${JSONCPP_PUBLIC_HEADERS}"
 )
