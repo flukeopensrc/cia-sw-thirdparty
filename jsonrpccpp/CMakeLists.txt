@@ -27,6 +27,7 @@ file(GLOB JSONRPCCPP_SERVER_HEADERS
     "server/*.h"
 )
 file(GLOB JSONRPCCPP_FILES
+    "*.h"
     "common/*.h"
     "common/*.cpp"
     "client/*.h"
@@ -66,13 +67,13 @@ install(FILES
 )
 install(FILES
     ${JSONRPCCPP_COMMON_HEADERS}
-        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsonrpccpp/common"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsonrpccpp/common/"
 )
 install(FILES
     ${JSONRPCCPP_CLIENT_HEADERS}
-        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsonrpccpp/client"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsonrpccpp/client/"
 )
 install(FILES
     ${JSONRPCCPP_SERVER_HEADERS}
-        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsonrpccpp/server"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsonrpccpp/server/"
 )
