@@ -38,6 +38,7 @@ set_target_properties(usbtmc
     LIBRARY_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     RUNTIME_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     OUTPUT_NAME usbtmc
+    PUBLIC_HEADER "usbtmc488.h"
 )
 
 install(TARGETS usbtmc
