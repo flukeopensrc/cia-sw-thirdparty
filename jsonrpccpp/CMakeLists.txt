@@ -14,29 +14,12 @@
 
 project(jsonrpccpp CXX)
 
-file(GLOB JSONRPCCPP_FILES
-    "common/*.h"
-    "common/*.cpp"
-    "client/*.h"
-    "client/*.cpp"  
-    "client/connectors/linuxtcpsocketclient.h"
-    "client/connectors/linuxtcpsocketclient.cpp"
-    "server/*.h"
-    "server/*.cpp"   
-    "server/connectors/linuxtcpsocketserver.h"
-    "server/connectors/linuxtcpsocketserver.cpp"
-)
+add_subdirectory(client)
+add_subdirectory(common)
+add_subdirectory(server)
 
-add_library(jsonrpccpp ${JSONRPCCPP_FILES})
-
-target_include_directories(jsonrpccpp PRIVATE
-    ${CIA_DIR}/thirdparty
-)
-
-set_target_properties(jsonrpccpp
-    PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
-    LIBRARY_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
-    RUNTIME_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
-    OUTPUT_NAME jsonrpccpp
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsonrpccpp/"
+        FILES_MATCHING
+            PATTERN "*.h"
 )

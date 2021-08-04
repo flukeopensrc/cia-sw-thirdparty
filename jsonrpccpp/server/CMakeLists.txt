@@ -12,38 +12,33 @@
 #
 #-------------------------------------------------
 
-project(jsoncpp CXX)
+project(jsonrpccppserver CXX)
 
-file(GLOB JSONCPP_PUBLIC_HEADERS
-    "json/*.h"
-)
-
-file(GLOB JSONCPP_FILES
+file(GLOB JSONRPCCPP_SERVER_FILES
     "*.h"
     "*.cpp"
+    "connectors/linuxtcpsocketserver.h"
+    "connectors/linuxtcpsocketserver.cpp"
 )
 
-add_library(jsoncpp ${JSONCPP_FILES})
+add_library(jsonrpccppserver ${JSONRPCCPP_SERVER_FILES})
 
-target_include_directories(jsoncpp PRIVATE
+target_include_directories(jsonrpccppserver PRIVATE
     ${CIA_DIR}/thirdparty
 )
 
-set_target_properties(jsoncpp
+set_target_properties(jsonrpccppserver
     PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     LIBRARY_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     RUNTIME_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     SOVERSION 0.0.0
-    OUTPUT_NAME jsoncpp
-    PUBLIC_HEADER "${JSONCPP_PUBLIC_HEADERS}"
+    OUTPUT_NAME jsonrpccpp-server
 )
 
-install(TARGETS jsoncpp
+install(TARGETS jsonrpccppserver
     LIBRARY 
         DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     ARCHIVE
         DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    PUBLIC_HEADER
-        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsoncpp/json/"
 )

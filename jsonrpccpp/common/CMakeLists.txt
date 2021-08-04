@@ -12,38 +12,31 @@
 #
 #-------------------------------------------------
 
-project(jsoncpp CXX)
+project(jsonrpccppcommon CXX)
 
-file(GLOB JSONCPP_PUBLIC_HEADERS
-    "json/*.h"
-)
-
-file(GLOB JSONCPP_FILES
+file(GLOB JSONRPCCPP_COMMON_FILES
     "*.h"
     "*.cpp"
 )
 
-add_library(jsoncpp ${JSONCPP_FILES})
+add_library(jsonrpccppcommon ${JSONRPCCPP_COMMON_FILES})
 
-target_include_directories(jsoncpp PRIVATE
+target_include_directories(jsonrpccppcommon PRIVATE
     ${CIA_DIR}/thirdparty
 )
 
-set_target_properties(jsoncpp
+set_target_properties(jsonrpccppcommon
     PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     LIBRARY_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     RUNTIME_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     SOVERSION 0.0.0
-    OUTPUT_NAME jsoncpp
-    PUBLIC_HEADER "${JSONCPP_PUBLIC_HEADERS}"
+    OUTPUT_NAME jsonrpccpp-common
 )
 
-install(TARGETS jsoncpp
+install(TARGETS jsonrpccppcommon
     LIBRARY 
         DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     ARCHIVE
         DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-    PUBLIC_HEADER
-        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsoncpp/json/"
 )
