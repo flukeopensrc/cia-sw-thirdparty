@@ -30,6 +30,10 @@ target_include_directories(usbtmc PRIVATE
 #    ${CIA_DIR}/src/thridparty
 )
 
+target_link_libraries(usbtmc
+    pthread
+)
+
 set_target_properties(usbtmc PROPERTIES LINKER_LANGUAGE CXX)
 
 set_target_properties(usbtmc

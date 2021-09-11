@@ -27,6 +27,10 @@ target_include_directories(jsonrpccppclient PRIVATE
     ${CIA_DIR}/thirdparty
 )
 
+target_link_libraries(jsonrpccppclient
+    jsonrpccppcommon
+)
+
 set_target_properties(jsonrpccppclient
     PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
