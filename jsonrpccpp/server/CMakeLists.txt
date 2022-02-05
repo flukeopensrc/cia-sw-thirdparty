@@ -34,15 +34,12 @@ target_link_libraries(jsonrpccppserver
 
 set_target_properties(jsonrpccppserver
     PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
-    LIBRARY_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
-    RUNTIME_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     SOVERSION 0.0.0
     OUTPUT_NAME jsonrpccpp-server
 )
 
 install(TARGETS jsonrpccppserver
-    LIBRARY 
+    LIBRARY
         DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     ARCHIVE
         DESTINATION "${CMAKE_INSTALL_LIBDIR}"

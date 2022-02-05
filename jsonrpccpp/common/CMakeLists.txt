@@ -31,15 +31,12 @@ target_link_libraries(jsonrpccppcommon
 
 set_target_properties(jsonrpccppcommon
     PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
-    LIBRARY_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
-    RUNTIME_OUTPUT_DIRECTORY "${CIA_BIN_DIR}/thirdparty"
     SOVERSION 0.0.0
     OUTPUT_NAME jsonrpccpp-common
 )
 
 install(TARGETS jsonrpccppcommon
-    LIBRARY 
+    LIBRARY
         DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     ARCHIVE
         DESTINATION "${CMAKE_INSTALL_LIBDIR}"
