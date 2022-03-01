@@ -46,8 +46,11 @@ set_target_properties(usbtmc
 install(TARGETS usbtmc
     LIBRARY
         DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        COMPONENT runtime
     ARCHIVE
         DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        COMPONENT development
     PUBLIC_HEADER
         DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/usbtmc/"
+        COMPONENT development
 )
