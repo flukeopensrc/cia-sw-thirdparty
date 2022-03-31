@@ -41,6 +41,8 @@ set_target_properties(jsonrpccppserver
 install(TARGETS jsonrpccppserver
     LIBRARY
         DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        COMPONENT runtime
     ARCHIVE
         DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        COMPONENT development
 )

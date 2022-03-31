@@ -19,7 +19,8 @@ add_subdirectory(common)
 add_subdirectory(server)
 
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/"
-        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsonrpccpp/"
+        DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jsonrpccpp"
+        COMPONENT development
         FILES_MATCHING
             PATTERN "*.h"
 )
