@@ -63,6 +63,27 @@ void FileDescriptorClient::SendRPCMessage(const std::string& message,
   do
   {
     nbytes = read(inputfd, buffer, BUFFER_SIZE);
+    if(nbytes == -1)
+    {
+        string message = "recv() failed";
+        int err = errno;
+        switch(err)
+        {
+            case EWOULDBLOCK:
+            case EBADF:
+            case ECONNRESET:
+            case EFAULT:
+            case EINTR:
+            case EINVAL:
+            case ENOMEM:
+            case ENOTCONN:
+            case ENOTSOCK:
+                message = strerror(err);
+                break;
+        }
+        close(inputfd);
+        throw JsonRpcException(Errors::ERROR_CLIENT_CONNECTOR, message);
+    }
     result.append(buffer, nbytes);
   } while(result.find(DELIMITER_CHAR) == string::npos);
 }

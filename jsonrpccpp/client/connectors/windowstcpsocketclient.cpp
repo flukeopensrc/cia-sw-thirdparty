@@ -115,8 +115,6 @@ void WindowsTcpSocketClient::SendRPCMessage(const std::string& message, std::str
 		}
 		else
 		{
-			string tmp;
-			tmp.append(buffer, nbytes);
 			result.append(buffer,nbytes);
 		}
 

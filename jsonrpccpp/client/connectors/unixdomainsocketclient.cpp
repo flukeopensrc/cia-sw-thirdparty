@@ -73,8 +73,27 @@ void UnixDomainSocketClient::SendRPCMessage(const std::string& message, std::str
 	do
 	{
 		nbytes = read(socket_fd, buffer, BUFFER_SIZE);
-		string tmp;
-		tmp.append(buffer, nbytes);
+                if(nbytes == -1)
+                {
+                        string message = "recv() failed";
+                        int err = errno;
+                        switch(err)
+                        {
+                                case EWOULDBLOCK:
+                                case EBADF:
+                                case ECONNRESET:
+                                case EFAULT:
+                                case EINTR:
+                                case EINVAL:
+                                case ENOMEM:
+                                case ENOTCONN:
+                                case ENOTSOCK:
+                                        message = strerror(err);
+                                        break;
+                        }
+                        close(socket_fd);
+                        throw JsonRpcException(Errors::ERROR_CLIENT_CONNECTOR, message);
+                }
 		result.append(buffer,nbytes);
 
 	} while(result.find(DELIMITER_CHAR) == string::npos);

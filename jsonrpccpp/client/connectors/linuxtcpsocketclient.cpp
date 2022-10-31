@@ -112,8 +112,6 @@ void LinuxTcpSocketClient::SendRPCMessage(const std::string& message, std::strin
 		}
 		else
 		{
-			string tmp;
-			tmp.append(buffer, nbytes);
 			result.append(buffer,nbytes);
 		}
 	} while(result.find(DELIMITER_CHAR) == string::npos);
